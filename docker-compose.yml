@@ -1,0 +1,24 @@
+services:
+  openclaw-voice-bridge:
+    build:
+      context: .
+      dockerfile: bridge/Dockerfile
+    container_name: openclaw-voice-bridge
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      # Reach OpenClaw on the host by default (Linux).
+      OPENCLAW_BASE_URL: ${OPENCLAW_BASE_URL:-http://172.17.0.1:18789}
+      AUDIT_LOG_PATH: /var/log/openclaw-voice-bridge/audit.jsonl
+    ports:
+      # Prefer Tailscale Serve to this port; avoid public bind when possible.
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - voice_bridge_logs:/var/log/openclaw-voice-bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  voice_bridge_logs:
