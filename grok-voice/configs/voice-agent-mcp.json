@@ -1,0 +1,74 @@
+{
+  "name": "OpenClaw Voice Control",
+  "voice": "eve",
+  "instructions_file": "../prompts/system.md",
+  "keyterms": [
+    "OpenClaw",
+    "QDS Systems",
+    "orchestrator",
+    "Telegram",
+    "historian",
+    "PLC",
+    "SCADA",
+    "Tailscale"
+  ],
+  "guardrails": [
+    "Require explicit spoken confirmation before any write/state-changing action",
+    "Do not invent status information",
+    "Keep replies short and professional",
+    "Escalate production or safety issues clearly"
+  ],
+  "session": {
+    "type": "session.update",
+    "session": {
+      "voice": "eve",
+      "turn_detection": {
+        "type": "server_vad",
+        "silence_duration_ms": 700
+      },
+      "audio": {
+        "input": {
+          "transcription": {
+            "language_hint": "en-US",
+            "keyterms": [
+              "OpenClaw",
+              "QDS Systems",
+              "orchestrator",
+              "historian",
+              "PLC",
+              "SCADA"
+            ]
+          }
+        }
+      },
+      "tools": [
+        {
+          "type": "mcp",
+          "server_url": "https://YOUR_TAILSCALE_HOST:8787/mcp",
+          "server_label": "openclaw",
+          "server_description": "Private OpenClaw orchestrator control plane for QDS Systems",
+          "authorization": "REPLACE_WITH_BRIDGE_API_KEY",
+          "allowed_tools": [
+            "openclaw_health",
+            "openclaw_list_agents",
+            "openclaw_get_status",
+            "openclaw_get_summary"
+          ]
+        }
+      ]
+    }
+  },
+  "rollout_notes": {
+    "phase_1_readonly": [
+      "openclaw_health",
+      "openclaw_list_agents",
+      "openclaw_get_status",
+      "openclaw_get_summary"
+    ],
+    "phase_2_writes": [
+      "openclaw_assign_task",
+      "openclaw_control_session"
+    ],
+    "enable_writes_env": "ENABLE_WRITE_TOOLS=true"
+  }
+}

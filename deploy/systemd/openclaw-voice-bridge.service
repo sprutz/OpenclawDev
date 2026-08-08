@@ -1,0 +1,25 @@
+[Unit]
+Description=OpenClaw Grok Voice Bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/openclaw-voice-bridge/bridge
+EnvironmentFile=/opt/openclaw-voice-bridge/.env
+Environment=PYTHONPATH=/opt/openclaw-voice-bridge/bridge/src
+ExecStart=/usr/bin/python3 -m uvicorn openclaw_voice_bridge.app:create_app --factory --host ${HOST} --port ${PORT}
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/log/openclaw-voice-bridge
+
+[Install]
+WantedBy=multi-user.target

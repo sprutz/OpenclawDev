@@ -1,0 +1,106 @@
+[
+  {
+    "type": "function",
+    "name": "openclaw_health",
+    "description": "Check OpenClaw gateway health and connectivity",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_list_agents",
+    "description": "List all configured OpenClaw agents and related model aliases",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_get_status",
+    "description": "Get detailed status of a gateway, agent, task, or project",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Agent name, task ID, project name, or 'gateway'"
+        }
+      },
+      "required": ["target"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_get_summary",
+    "description": "Get a concise operational summary across agents/tasks",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Optional focus area (agent, project, or omit for all)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_assign_task",
+    "description": "Assign a new task to an OpenClaw agent or the orchestrator. Requires confirmed=true after explicit user confirmation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "type": "string",
+          "description": "Optional agent id/name. Defaults to orchestrator/main."
+        },
+        "description": {
+          "type": "string",
+          "description": "Clear task description to execute"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "normal", "high", "urgent"],
+          "description": "Task priority"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "description": "Must be true after the user explicitly confirms"
+        }
+      },
+      "required": ["description"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_control_session",
+    "description": "Start, pause, resume, or stop an agent/task session. Requires confirmed=true after explicit user confirmation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["start", "pause", "resume", "stop"]
+        },
+        "target": {
+          "type": "string",
+          "description": "Agent name or task ID"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "description": "Must be true after the user explicitly confirms"
+        }
+      },
+      "required": ["action"],
+      "additionalProperties": false
+    }
+  }
+]
