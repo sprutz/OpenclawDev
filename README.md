@@ -63,6 +63,14 @@ Why MCP: Grok Voice has native **remote MCP** support, so xAI executes tools ser
 - Bearer auth + rate limit + JSONL audit log
 - Bind bridge to `127.0.0.1` and publish only via Tailscale
 
+## Cursor as operator (Hostinger VPS)
+
+To make Cursor Cloud Agents the main way you maintain OpenClaw:
+
+1. Add Tailscale + SSH + gateway secrets (see [`deploy/cursor-operator-access.md`](deploy/cursor-operator-access.md))
+2. Use `scripts/vps/*` from a Cloud Agent to join your tailnet and operate the VPS
+3. Keep OpenClaw private (loopback/Tailscale only)
+
 ## Company context
 
 Configured for **QDS Systems** industrial control workflows. Edit company/agent names in the system prompt and `.env` as needed.
