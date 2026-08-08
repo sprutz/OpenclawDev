@@ -36,14 +36,21 @@ else
 fi
 
 echo "=== gateway via tunnel ==="
-if curl -fsS "http://127.0.0.1:${LOCAL_PORT}/api/v1/admin/rpc" \
+# Prefer the live health endpoints; admin-http-rpc is optional and often not enabled.
+if curl -fsS "http://127.0.0.1:${LOCAL_PORT}/healthz" \
+  -H "Authorization: Bearer ${OPENCLAW_GATEWAY_TOKEN}"; then
+  echo
+elif curl -fsS "http://127.0.0.1:${LOCAL_PORT}/health" \
+  -H "Authorization: Bearer ${OPENCLAW_GATEWAY_TOKEN}"; then
+  echo
+elif curl -fsS "http://127.0.0.1:${LOCAL_PORT}/api/v1/admin/rpc" \
   -H "Authorization: Bearer ${OPENCLAW_GATEWAY_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"method":"health","params":{}}'; then
   echo
 else
-  echo "admin-rpc unavailable; trying /v1/models"
-  curl -fsS "http://127.0.0.1:${LOCAL_PORT}/v1/models" \
-    -H "Authorization: Bearer ${OPENCLAW_GATEWAY_TOKEN}" || true
-  echo
+  echo "health endpoints unavailable; raw root probe:"
+  curl -sS -o /dev/null -w "GET / -> %{http_code}\n" \
+    -H "Authorization: Bearer ${OPENCLAW_GATEWAY_TOKEN}" \
+    "http://127.0.0.1:${LOCAL_PORT}/" || true
 fi
