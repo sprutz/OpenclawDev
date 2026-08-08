@@ -41,7 +41,7 @@ Add these in [Cloud Agents secrets](https://cursor.com/dashboard/cloud-agents):
 | `OPENCLAW_VPS_HOST` | yes | MagicDNS name or `100.x` address |
 | `OPENCLAW_VPS_USER` | yes | SSH user on the VPS |
 | `OPENCLAW_VPS_SSH_PRIVATE_KEY` | yes | Private key PEM |
-| `OPENCLAW_GATEWAY_TOKEN` | yes | Gateway bearer token |
+| `OPENCLAW_GATEWAY_TOKEN` | yes | Gateway bearer token for the **running** gateway user (on this Hostinger box: `stan` → `/home/stan/.openclaw/openclaw.json` → `gateway.auth.token`). Root’s copy is a different install and will not authenticate. |
 | `BRIDGE_API_KEY` | optional | Voice bridge auth |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | optional | Telegram fallback path |
 | `XAI_API_KEY` | optional | Direct Voice API experiments |
@@ -51,18 +51,23 @@ After secrets are saved, reply in the agent chat so setup can finish (environmen
 ## Agent day-2 commands
 
 ```bash
-# Join tailnet (userspace)
+# One-time on a fresh Cloud Agent image (if missing):
+#   curl -fsSL https://tailscale.com/install.sh | sudo bash
+#   sudo apt-get install -y netcat-openbsd
+
+# Join tailnet (userspace — required in Cursor VMs; no TUN device)
 ./scripts/vps/connect-tailscale.sh
 source "$HOME/.tailscale-openclaw/proxy.env"
 
 # SSH
 ./scripts/vps/ssh-vps.sh
-./scripts/vps/remote-exec.sh 'openclaw gateway status'
+./scripts/vps/remote-exec.sh 'hostname; sudo -u stan -H openclaw gateway status'
 
 # Health + tunnel to local 18789
 ./scripts/vps/openclaw-status.sh
 ```
 
+`connect-tailscale.sh` starts `tailscaled` with `--tun=userspace-networking` and a private socket under `~/.tailscale-openclaw/`. Do not use the system `tailscaled` TUN service in these VMs.
 ## What Cursor will maintain once connected
 - OpenClaw gateway health / channel probes
 - Agent roster and task routing changes
