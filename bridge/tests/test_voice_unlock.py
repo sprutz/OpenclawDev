@@ -4,7 +4,7 @@ import pytest
 
 from openclaw_voice_bridge.audit import AuditLogger
 from openclaw_voice_bridge.config import Settings
-from openclaw_voice_bridge.tools import VoiceTools, normalize_passphrase
+from openclaw_voice_bridge.tools import VoiceTools, normalize_passphrase, passphrase_matches
 
 
 class _DummyOpenClaw:
@@ -50,3 +50,17 @@ async def test_voice_unlock_gate(tmp_path):
 
 def test_normalize_passphrase():
     assert normalize_passphrase("  Pursue, with-Enthusiasm! ") == "pursue with enthusiasm"
+    assert normalize_passphrase("pursue with enthusiasm.") == "pursue with enthusiasm"
+    assert normalize_passphrase("pursue with enthusiasm period") == "pursue with enthusiasm"
+    assert normalize_passphrase("The passphrase is pursue with enthusiasm.") == (
+        "pursue with enthusiasm"
+    )
+
+
+def test_passphrase_matches_stt_noise():
+    expected = "pursue with enthusiasm"
+    assert passphrase_matches("pursue with enthusiasm.", expected)
+    assert passphrase_matches("Pursue with enthusiasm!", expected)
+    assert passphrase_matches("pursue with enthusiasm period", expected)
+    assert passphrase_matches("password is pursue with enthusiasm.", expected)
+    assert not passphrase_matches("pursue with energy", expected)

@@ -16,10 +16,60 @@ Priority = Literal["low", "normal", "high", "urgent"]
 SessionAction = Literal["start", "pause", "resume", "stop"]
 
 
+_LEADING_FILLER = re.compile(
+    r"^(?:ok(?:ay)?|sure|yes|the\s+)?(?:access\s+)?(?:passphrase|password|phrase|code)\s+(?:is|was)\s+",
+    re.IGNORECASE,
+)
+_TRAILING_FILLER_WORDS = frozenset(
+    {"period", "fullstop", "dot", "please", "thanks", "thankyou"}
+)
+
+
 def normalize_passphrase(value: str) -> str:
-    """Normalize spoken passphrases for reliable STT matching."""
-    cleaned = re.sub(r"[^a-z0-9]+", " ", (value or "").lower()).strip()
-    return re.sub(r"\s+", " ", cleaned)
+    """Normalize spoken passphrases for reliable STT matching.
+
+    Strips punctuation (including a trailing period STT often appends),
+    spoken filler like \"period\", and light lead-ins such as \"password is\".
+    """
+    text = (value or "").lower().replace("\u2019", "'").replace("’", "'")
+    text = text.strip().strip("\"'`")
+    text = _LEADING_FILLER.sub("", text).strip()
+    # Drop trailing punctuation repeatedly (., !, ?, …, etc.).
+    text = re.sub(r"[\s\.\,\!\?\;\:…]+$", "", text).strip()
+    cleaned = re.sub(r"[^a-z0-9]+", " ", text).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    parts = cleaned.split()
+    while parts and parts[-1] in _TRAILING_FILLER_WORDS:
+        parts.pop()
+    return " ".join(parts)
+
+
+def passphrase_matches(provided: str, expected_raw: str) -> bool:
+    """True if provided spoken text matches the expected passphrase under STT noise."""
+    expected = normalize_passphrase(expected_raw)
+    if not expected:
+        return False
+    provided_n = normalize_passphrase(provided)
+    if not provided_n:
+        return False
+
+    candidates = {provided_n, provided_n.replace(" ", "")}
+    # If the model/STT wrapped the phrase in a longer utterance, accept a contiguous match.
+    expected_compact = expected.replace(" ", "")
+    provided_compact = provided_n.replace(" ", "")
+    if expected_compact and expected_compact in provided_compact:
+        candidates.add(expected)
+
+    for candidate in candidates:
+        if len(candidate) == len(expected) and secrets.compare_digest(candidate, expected):
+            return True
+        if (
+            " " not in candidate
+            and len(candidate) == len(expected_compact)
+            and secrets.compare_digest(candidate, expected_compact)
+        ):
+            return True
+    return False
 
 
 class ToolResult(BaseModel):
@@ -148,16 +198,17 @@ class VoiceTools:
                 data={"unlocked": True, "gate_enabled": False},
                 spoken_hint="Voice unlock is not required right now.",
             )
-        expected = normalize_passphrase(self.settings.voice_spoken_password)
-        provided = normalize_passphrase(passphrase)
-        if not provided or not secrets.compare_digest(provided, expected):
+        if not passphrase_matches(passphrase, self.settings.voice_spoken_password):
             self._unlocked_until = 0.0
             return ToolResult(
                 ok=False,
                 tool=self.UNLOCK_TOOL,
                 error="Incorrect passphrase.",
                 spoken_hint="Access denied. Voice control remains locked.",
-                data={"unlocked": False},
+                data={
+                    "unlocked": False,
+                    "hint": "Retry the full passphrase; trailing punctuation is ignored.",
+                },
             )
         self._unlocked_until = time.time() + max(60, int(self.settings.voice_unlock_ttl_seconds))
         return ToolResult(
