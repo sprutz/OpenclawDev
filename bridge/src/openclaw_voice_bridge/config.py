@@ -55,6 +55,17 @@ class Settings(BaseSettings):
     company_name: str = "QDS Systems"
     voice_agent_name: str = "OpenClaw Voice Control"
 
+    # Public hostname(s) for MCP DNS-rebinding protection (Tailscale Funnel / MagicDNS).
+    # Comma-separated MagicDNS hostnames, no scheme/path.
+    mcp_public_hosts: list[str] = Field(default_factory=list)
+
+    @field_validator("mcp_public_hosts", mode="before")
+    @classmethod
+    def _split_hosts(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
+        return value
+
     @field_validator("allow_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:

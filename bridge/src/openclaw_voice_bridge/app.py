@@ -37,6 +37,39 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     tools = VoiceTools(settings, openclaw, telegram, audit)
     mcp = build_mcp(tools)
 
+    # Build MCP ASGI app first so we can wire its session_manager into our lifespan.
+    # Nested Starlette mounts do NOT run child lifespans automatically.
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    allowed_hosts = [
+        "127.0.0.1:*",
+        "localhost:*",
+        "[::1]:*",
+    ]
+    for host in settings.mcp_public_hosts:
+        host = host.strip().removeprefix("https://").removeprefix("http://").rstrip("/")
+        if not host:
+            continue
+        allowed_hosts.append(host)
+        allowed_hosts.append(f"{host}:*")
+
+    transport_security = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=allowed_hosts,
+        allowed_origins=["*"],
+    )
+
+    # host != localhost so the SDK does not force localhost-only Host checks.
+    # stateless_http fits xAI remote MCP (each call from their cloud).
+    mcp_app = mcp.streamable_http_app(
+        streamable_http_path="/",
+        json_response=True,
+        stateless_http=True,
+        transport_security=transport_security,
+        host="0.0.0.0",
+    )
+    session_manager = mcp._lowlevel_server._session_manager  # noqa: SLF001
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         logging.basicConfig(
@@ -44,23 +77,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             format="%(asctime)s %(levelname)s %(name)s %(message)s",
         )
         logger.info(
-            "Starting %s on %s:%s (backend=%s write_tools=%s)",
+            "Starting %s on %s:%s (backend=%s write_tools=%s mcp_hosts=%s)",
             settings.voice_agent_name,
             settings.host,
             settings.port,
             settings.backend_mode,
             settings.enable_write_tools,
+            settings.mcp_public_hosts,
         )
-        try:
-            yield
-        finally:
-            await openclaw.aclose()
-            await telegram.aclose()
+        async with session_manager.run():
+            try:
+                yield
+            finally:
+                await openclaw.aclose()
+                await telegram.aclose()
 
     app = FastAPI(
         title="OpenClaw Grok Voice Bridge",
         version="0.1.0",
         lifespan=lifespan,
+        # Avoid /mcp -> /mcp/ 307 redirects that break some MCP clients (incl. xAI).
+        redirect_slashes=False,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -166,10 +203,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
         }
 
-    # Mount MCP streamable HTTP at /mcp (xAI Remote MCP transport).
-    mcp_app = mcp.streamable_http_app(streamable_http_path="/", host=settings.host)
-
     class McpAuthMiddleware:
+        """Bearer/X-API-Key gate in front of the MCP ASGI app."""
+
         def __init__(self, inner):  # noqa: ANN001
             self.inner = inner
 
@@ -200,6 +236,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 return
             await self.inner(scope, receive, send)
 
+    # Mount once; clients may use /mcp or /mcp/ (no redirect).
     app.mount("/mcp", McpAuthMiddleware(mcp_app))
     app.state.settings = settings
     app.state.tools = tools
