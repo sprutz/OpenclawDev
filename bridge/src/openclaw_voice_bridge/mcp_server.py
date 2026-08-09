@@ -84,6 +84,55 @@ def build_mcp(tools: VoiceTools) -> MCPServer:
         """Read a Second Brain document by relative path."""
         return (await tools.dispatch("openclaw_read_second_brain", {"path": path})).model_dump()
 
+    @mcp.tool(name="openclaw_list_upgrades")
+    async def openclaw_list_upgrades(
+        status: str | None = None,
+        limit: int = 7,
+    ) -> dict[str, Any]:
+        """List daily tool/skill upgrade suggestions."""
+        args: dict[str, Any] = {"limit": limit}
+        if status:
+            args["status"] = status
+        return (await tools.dispatch("openclaw_list_upgrades", args)).model_dump()
+
+    @mcp.tool(name="openclaw_get_upgrade")
+    async def openclaw_get_upgrade(
+        id: str | None = None,
+        date: str | None = None,
+    ) -> dict[str, Any]:
+        """Get today's or a specific upgrade suggestion for spoken readout."""
+        args: dict[str, Any] = {}
+        if id:
+            args["id"] = id
+        if date:
+            args["date"] = date
+        return (await tools.dispatch("openclaw_get_upgrade", args)).model_dump()
+
+    @mcp.tool(name="openclaw_approve_upgrade")
+    async def openclaw_approve_upgrade(
+        id: str | None = None,
+        confirmed: bool = False,
+    ) -> dict[str, Any]:
+        """Approve suggestion and launch Cursor cloud agent. Requires confirmed=true."""
+        args: dict[str, Any] = {"confirmed": confirmed}
+        if id:
+            args["id"] = id
+        return (await tools.dispatch("openclaw_approve_upgrade", args)).model_dump()
+
+    @mcp.tool(name="openclaw_reject_upgrade")
+    async def openclaw_reject_upgrade(
+        id: str | None = None,
+        reason: str | None = None,
+        confirmed: bool = False,
+    ) -> dict[str, Any]:
+        """Reject an upgrade suggestion. Requires confirmed=true."""
+        args: dict[str, Any] = {"confirmed": confirmed}
+        if id:
+            args["id"] = id
+        if reason:
+            args["reason"] = reason
+        return (await tools.dispatch("openclaw_reject_upgrade", args)).model_dump()
+
     @mcp.tool(name="openclaw_assign_task")
     async def openclaw_assign_task(
         description: str,

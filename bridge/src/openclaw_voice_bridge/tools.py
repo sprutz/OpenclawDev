@@ -9,8 +9,10 @@ from pydantic import BaseModel, Field
 
 from .audit import AuditLogger
 from .config import Settings
+from .cursor_client import CursorApiError, launch_cloud_agent
 from .openclaw_client import OpenClawClient, OpenClawError, TelegramBridge
 from . import second_brain as sb
+from . import upgrades as ug
 
 Priority = Literal["low", "normal", "high", "urgent"]
 SessionAction = Literal["start", "pause", "resume", "stop"]
@@ -81,6 +83,10 @@ class VoiceTools:
     """Maps Grok Voice tool calls onto OpenClaw (and optional Telegram)."""
 
     WRITE_TOOLS = {"openclaw_assign_task", "openclaw_control_session"}
+    UPGRADE_WRITE_TOOLS = {
+        "openclaw_approve_upgrade",
+        "openclaw_reject_upgrade",
+    }
     UNLOCK_TOOL = "openclaw_voice_unlock"
 
     def __init__(
@@ -120,6 +126,10 @@ class VoiceTools:
             "openclaw_list_second_brain": self.list_second_brain,
             "openclaw_search_second_brain": self.search_second_brain,
             "openclaw_read_second_brain": self.read_second_brain,
+            "openclaw_list_upgrades": self.list_upgrades,
+            "openclaw_get_upgrade": self.get_upgrade,
+            "openclaw_approve_upgrade": self.approve_upgrade,
+            "openclaw_reject_upgrade": self.reject_upgrade,
         }
         handler = handlers.get(name)
         if handler is None:
@@ -183,6 +193,24 @@ class VoiceTools:
                 needs_confirmation=True,
                 error="Confirmation required before changing OpenClaw state.",
                 spoken_hint="Please confirm before I make that change.",
+            )
+        return None
+
+    def _gate_upgrade_write(self, tool: str, confirmed: bool | None) -> ToolResult | None:
+        if not self.settings.enable_upgrade_approvals:
+            return ToolResult(
+                ok=False,
+                tool=tool,
+                error="Upgrade approvals are disabled (ENABLE_UPGRADE_APPROVALS=false).",
+                spoken_hint="Upgrade approvals are turned off right now.",
+            )
+        if self.settings.require_confirmation and not confirmed:
+            return ToolResult(
+                ok=False,
+                tool=tool,
+                needs_confirmation=True,
+                error="Confirmation required before approving or rejecting an upgrade.",
+                spoken_hint="Please confirm that you want me to proceed with that upgrade action.",
             )
         return None
 
@@ -472,6 +500,195 @@ class VoiceTools:
             spoken_hint=f"Session {action} completed.",
         )
 
+    async def list_upgrades(
+        self,
+        status: str | None = None,
+        limit: int = 7,
+    ) -> ToolResult:
+        try:
+            items = ug.list_suggestions(
+                self.settings.assistant_upgrades_root,
+                status=(status or None),
+                limit=limit,
+            )
+        except (OSError, ValueError) as exc:
+            return ToolResult(
+                ok=False,
+                tool="openclaw_list_upgrades",
+                error=str(exc),
+                spoken_hint="I could not list upgrade suggestions.",
+            )
+        return ToolResult(
+            ok=True,
+            tool="openclaw_list_upgrades",
+            data={"items": items, "count": len(items)},
+            spoken_hint=(
+                f"There are {len(items)} upgrade suggestions."
+                if items
+                else "There are no upgrade suggestions yet."
+            ),
+        )
+
+    async def get_upgrade(self, id: str | None = None, date: str | None = None) -> ToolResult:
+        """Get one suggestion by id/date, or the latest pending / today."""
+        try:
+            if id:
+                data = ug.load_suggestion(self.settings.assistant_upgrades_root, id)
+            elif date:
+                day = ug.validate_date(date)
+                data = ug.load_suggestion(self.settings.assistant_upgrades_root, str(day))
+            else:
+                data = ug.get_latest_pending(self.settings.assistant_upgrades_root)
+                if data is None:
+                    return ToolResult(
+                        ok=False,
+                        tool="openclaw_get_upgrade",
+                        error="No upgrade suggestion available",
+                        spoken_hint="There is no upgrade suggestion ready yet.",
+                    )
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            return ToolResult(
+                ok=False,
+                tool="openclaw_get_upgrade",
+                error=str(exc),
+                spoken_hint="I could not find that upgrade suggestion.",
+            )
+        return ToolResult(
+            ok=True,
+            tool="openclaw_get_upgrade",
+            data=data,
+            spoken_hint=ug.spoken_blurb(data),
+        )
+
+    async def approve_upgrade(
+        self,
+        id: str | None = None,
+        confirmed: bool = False,
+    ) -> ToolResult:
+        gate = self._gate_upgrade_write("openclaw_approve_upgrade", confirmed)
+        if gate:
+            return gate
+        try:
+            if id:
+                data = ug.load_suggestion(self.settings.assistant_upgrades_root, id)
+            else:
+                data = ug.get_latest_pending(self.settings.assistant_upgrades_root)
+                if data is None:
+                    return ToolResult(
+                        ok=False,
+                        tool="openclaw_approve_upgrade",
+                        error="No pending upgrade suggestion",
+                        spoken_hint="There is nothing pending to approve.",
+                    )
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            return ToolResult(
+                ok=False,
+                tool="openclaw_approve_upgrade",
+                error=str(exc),
+                spoken_hint="I could not load that upgrade suggestion.",
+            )
+
+        if str(data.get("status")) not in {"pending", "queued_no_api_key"}:
+            return ToolResult(
+                ok=False,
+                tool="openclaw_approve_upgrade",
+                error=f"Suggestion status is {data.get('status')}, not pending",
+                spoken_hint=f"That suggestion is already {data.get('status')}.",
+                data=data,
+            )
+
+        prompt = ug.build_cursor_prompt(data)
+        title = str(data.get("title") or data.get("id") or "OpenClaw upgrade")
+
+        if not self.settings.cursor_api_key.strip():
+            data["status"] = "queued_no_api_key"
+            data["approval_note"] = "Approved by voice; waiting for CURSOR_API_KEY on the bridge."
+            saved = ug.save_suggestion(self.settings.assistant_upgrades_root, data)
+            return ToolResult(
+                ok=True,
+                tool="openclaw_approve_upgrade",
+                data=saved,
+                spoken_hint=(
+                    "Approved. The Cursor API key is not on the bridge yet, "
+                    "so the build is queued until that key is available."
+                ),
+            )
+
+        try:
+            launched = await launch_cloud_agent(self.settings, prompt=prompt, name=title)
+        except CursorApiError as exc:
+            data["status"] = "queued_no_api_key"
+            data["approval_note"] = f"Approved but Cursor launch failed: {exc}"
+            data["cursor_error"] = {"message": str(exc), "status": exc.status, "payload": exc.payload}
+            saved = ug.save_suggestion(self.settings.assistant_upgrades_root, data)
+            return ToolResult(
+                ok=False,
+                tool="openclaw_approve_upgrade",
+                error=str(exc),
+                data=saved,
+                spoken_hint="Approved locally, but I could not start the Cursor agent.",
+            )
+
+        agent = launched.get("agent") if isinstance(launched, dict) else None
+        agent = agent if isinstance(agent, dict) else {}
+        data["status"] = "building"
+        data["approved_at"] = data.get("updated_at")
+        data["cursor_agent_id"] = agent.get("id")
+        data["cursor_agent_url"] = agent.get("url")
+        data["cursor_run_id"] = (launched.get("run") or {}).get("id") if isinstance(launched, dict) else None
+        data["cursor_launch"] = {
+            "id": agent.get("id"),
+            "url": agent.get("url"),
+            "status": agent.get("status"),
+        }
+        saved = ug.save_suggestion(self.settings.assistant_upgrades_root, data)
+        url = saved.get("cursor_agent_url") or "the Cursor agents page"
+        return ToolResult(
+            ok=True,
+            tool="openclaw_approve_upgrade",
+            data=saved,
+            spoken_hint=f"Approved. I started a Cursor cloud agent to build it. Details at {url}.",
+        )
+
+    async def reject_upgrade(
+        self,
+        id: str | None = None,
+        reason: str | None = None,
+        confirmed: bool = False,
+    ) -> ToolResult:
+        gate = self._gate_upgrade_write("openclaw_reject_upgrade", confirmed)
+        if gate:
+            return gate
+        try:
+            if id:
+                data = ug.load_suggestion(self.settings.assistant_upgrades_root, id)
+            else:
+                data = ug.get_latest_pending(self.settings.assistant_upgrades_root)
+                if data is None:
+                    return ToolResult(
+                        ok=False,
+                        tool="openclaw_reject_upgrade",
+                        error="No pending upgrade suggestion",
+                        spoken_hint="There is nothing pending to reject.",
+                    )
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            return ToolResult(
+                ok=False,
+                tool="openclaw_reject_upgrade",
+                error=str(exc),
+                spoken_hint="I could not load that upgrade suggestion.",
+            )
+        data["status"] = "rejected"
+        if reason:
+            data["rejection_reason"] = reason
+        saved = ug.save_suggestion(self.settings.assistant_upgrades_root, data)
+        return ToolResult(
+            ok=True,
+            tool="openclaw_reject_upgrade",
+            data=saved,
+            spoken_hint="Okay — I rejected today's upgrade suggestion.",
+        )
+
 
 def tool_specs(*, include_write_tools: bool = True) -> list[dict[str, Any]]:
     """Grok Voice / OpenAI-style function tool definitions."""
@@ -607,6 +824,79 @@ def tool_specs(*, include_write_tools: bool = True) -> list[dict[str, Any]]:
                     }
                 },
                 "required": ["path"],
+                "additionalProperties": False,
+            },
+        },
+        {
+            "type": "function",
+            "name": "openclaw_list_upgrades",
+            "description": "List daily OpenClaw tool/skill upgrade suggestions",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Optional filter: pending, building, done, rejected",
+                    },
+                    "limit": {"type": "integer", "description": "Max items"},
+                },
+                "additionalProperties": False,
+            },
+        },
+        {
+            "type": "function",
+            "name": "openclaw_get_upgrade",
+            "description": (
+                "Get today's (or a specific) upgrade suggestion to read aloud. "
+                "Omit id/date for the latest pending suggestion."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Suggestion id (usually YYYY-MM-DD)"},
+                    "date": {"type": "string", "description": "Date YYYY-MM-DD"},
+                },
+                "additionalProperties": False,
+            },
+        },
+        {
+            "type": "function",
+            "name": "openclaw_approve_upgrade",
+            "description": (
+                "Approve the upgrade suggestion and launch a Cursor cloud agent to build/test it. "
+                "Requires confirmed=true after explicit spoken confirmation."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Optional suggestion id; defaults to latest pending",
+                    },
+                    "confirmed": {
+                        "type": "boolean",
+                        "description": "Must be true after the user explicitly confirms",
+                    },
+                },
+                "additionalProperties": False,
+            },
+        },
+        {
+            "type": "function",
+            "name": "openclaw_reject_upgrade",
+            "description": (
+                "Reject the upgrade suggestion. Requires confirmed=true after explicit confirmation."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Optional suggestion id"},
+                    "reason": {"type": "string", "description": "Optional rejection reason"},
+                    "confirmed": {
+                        "type": "boolean",
+                        "description": "Must be true after the user explicitly confirms",
+                    },
+                },
                 "additionalProperties": False,
             },
         },

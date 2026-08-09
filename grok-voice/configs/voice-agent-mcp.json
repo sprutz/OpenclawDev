@@ -74,7 +74,11 @@
             "openclaw_read_daily_report",
             "openclaw_list_second_brain",
             "openclaw_search_second_brain",
-            "openclaw_read_second_brain"
+            "openclaw_read_second_brain",
+            "openclaw_list_upgrades",
+            "openclaw_get_upgrade",
+            "openclaw_approve_upgrade",
+            "openclaw_reject_upgrade"
           ]
         }
       ]
@@ -90,7 +94,11 @@
       "openclaw_read_daily_report",
       "openclaw_list_second_brain",
       "openclaw_search_second_brain",
-      "openclaw_read_second_brain"
+      "openclaw_read_second_brain",
+      "openclaw_list_upgrades",
+      "openclaw_get_upgrade",
+      "openclaw_approve_upgrade",
+      "openclaw_reject_upgrade"
     ],
     "spoken_unlock": "Set VOICE_SPOKEN_PASSWORD=pursuewithenthusiasm on the bridge. Voice instructions in prompts/system.md tell the agent to call openclaw_voice_unlock with passphrase pursuewithenthusiasm (no spaces). Spaced speech still matches on the bridge via compact compare.",
     "phase_2_writes": [

@@ -33,7 +33,11 @@ def allowed_voice_tools(settings: Settings) -> list[str]:
         "openclaw_list_second_brain",
         "openclaw_search_second_brain",
         "openclaw_read_second_brain",
+        "openclaw_list_upgrades",
+        "openclaw_get_upgrade",
     ]
+    if settings.enable_upgrade_approvals:
+        allowed.extend(["openclaw_approve_upgrade", "openclaw_reject_upgrade"])
     if settings.enable_write_tools:
         allowed.extend(["openclaw_assign_task", "openclaw_control_session"])
     return allowed
@@ -63,6 +67,10 @@ def build_session_update(settings: Settings) -> dict[str, Any]:
                             "pursue",
                             "enthusiasm",
                             "pursuewithenthusiasm",
+                            "upgrade",
+                            "suggestion",
+                            "approve",
+                            "reject",
                         ],
                     },
                 },

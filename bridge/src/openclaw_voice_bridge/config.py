@@ -65,6 +65,19 @@ class Settings(BaseSettings):
     # Optional xAI key for operator endpoints that mint realtime client secrets.
     xai_api_key: str = ""
 
+    # Daily assistant-upgrade suggestions (JSON under this directory).
+    assistant_upgrades_root: str = "/opt/openclaw-voice-bridge/data/assistant-upgrades"
+    # Allow voice approve/reject of upgrade suggestions (separate from general write tools).
+    enable_upgrade_approvals: bool = True
+
+    # Cursor Cloud Agents API (voice-approved builds).
+    cursor_api_key: str = ""
+    cursor_api_base: str = "https://api.cursor.com"
+    cursor_repo_url: str = "https://github.com/sprutz/OpenclawDev"
+    cursor_starting_ref: str = "main"
+    cursor_auto_create_pr: bool = True
+    cursor_model_id: str = ""
+
     # Second Brain (OpenClaw workspace knowledge store) — read-only for voice.
     second_brain_root: str = "/home/stan/clawd/second-brain"
 

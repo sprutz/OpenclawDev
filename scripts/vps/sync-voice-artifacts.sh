@@ -35,6 +35,10 @@ echo "Syncing voice artifacts to ${OPENCLAW_VPS_USER}@${OPENCLAW_VPS_HOST}..."
   "${ROOT}/bridge/src/openclaw_voice_bridge/app.py" \
   "${ROOT}/bridge/src/openclaw_voice_bridge/config.py" \
   "${ROOT}/bridge/src/openclaw_voice_bridge/voice_session.py" \
+  "${ROOT}/bridge/src/openclaw_voice_bridge/tools.py" \
+  "${ROOT}/bridge/src/openclaw_voice_bridge/mcp_server.py" \
+  "${ROOT}/bridge/src/openclaw_voice_bridge/upgrades.py" \
+  "${ROOT}/bridge/src/openclaw_voice_bridge/cursor_client.py" \
   "${OPENCLAW_VPS_USER}@${OPENCLAW_VPS_HOST}:/tmp/voice-artifacts/"
 "${SCP[@]}" \
   "${ROOT}/bridge/src/openclaw_voice_bridge/static/voice/index.html" \
@@ -59,7 +63,28 @@ install -o ubuntu -g ubuntu -m 644 "$SRC/README.md" /opt/openclaw-voice-bridge/g
 install -o ubuntu -g ubuntu -m 644 "$SRC/app.py" "$PKG/app.py"
 install -o ubuntu -g ubuntu -m 644 "$SRC/config.py" "$PKG/config.py"
 install -o ubuntu -g ubuntu -m 644 "$SRC/voice_session.py" "$PKG/voice_session.py"
+install -o ubuntu -g ubuntu -m 644 "$SRC/tools.py" "$PKG/tools.py"
+install -o ubuntu -g ubuntu -m 644 "$SRC/mcp_server.py" "$PKG/mcp_server.py"
+install -o ubuntu -g ubuntu -m 644 "$SRC/upgrades.py" "$PKG/upgrades.py"
+install -o ubuntu -g ubuntu -m 644 "$SRC/cursor_client.py" "$PKG/cursor_client.py"
 install -o ubuntu -g ubuntu -m 644 "$SRC/static/voice/index.html" "$PKG/static/voice/index.html"
+install -d -m 755 /opt/openclaw-voice-bridge/data/assistant-upgrades
+chown ubuntu:ubuntu /opt/openclaw-voice-bridge/data/assistant-upgrades || true
+
+# Upgrade approvals + Cursor launch (key may be injected separately)
+if grep -q '^ENABLE_UPGRADE_APPROVALS=' /opt/openclaw-voice-bridge/.env; then
+  sed -i 's/^ENABLE_UPGRADE_APPROVALS=.*/ENABLE_UPGRADE_APPROVALS=true/' /opt/openclaw-voice-bridge/.env
+else
+  echo 'ENABLE_UPGRADE_APPROVALS=true' >> /opt/openclaw-voice-bridge/.env
+fi
+grep -q '^ASSISTANT_UPGRADES_ROOT=' /opt/openclaw-voice-bridge/.env || \
+  echo 'ASSISTANT_UPGRADES_ROOT=/opt/openclaw-voice-bridge/data/assistant-upgrades' >> /opt/openclaw-voice-bridge/.env
+grep -q '^CURSOR_REPO_URL=' /opt/openclaw-voice-bridge/.env || \
+  echo 'CURSOR_REPO_URL=https://github.com/sprutz/OpenclawDev' >> /opt/openclaw-voice-bridge/.env
+grep -q '^CURSOR_STARTING_REF=' /opt/openclaw-voice-bridge/.env || \
+  echo 'CURSOR_STARTING_REF=main' >> /opt/openclaw-voice-bridge/.env
+grep -q '^CURSOR_AUTO_CREATE_PR=' /opt/openclaw-voice-bridge/.env || \
+  echo 'CURSOR_AUTO_CREATE_PR=true' >> /opt/openclaw-voice-bridge/.env
 
 install -m 600 "$SRC/system.md" /root/openclaw-backups/voice-agent-system.md
 install -m 600 "$SRC/voice-agent-mcp.json" /root/openclaw-backups/voice-agent-mcp.json

@@ -60,6 +60,19 @@ Bridge helpers:
 5. Run the sync + update scripts above (Cursor does this).
 6. After clean read-only sessions, set `ENABLE_WRITE_TOOLS=true`.
 
+## Daily upgrade suggestions → voice approve → Cursor build
+
+OpenClaw proposes one tool/skill upgrade each day. Approve by voice; the bridge launches a Cursor cloud agent to implement/test/PR it.
+
+See [`deploy/assistant-upgrades.md`](deploy/assistant-upgrades.md).
+
+```bash
+./scripts/vps/setup-daily-upgrade-cron.sh
+# Requires CURSOR_API_KEY on the bridge for live launches
+```
+
+Voice: “What’s today’s upgrade suggestion?” → “Approve it” / “Build it”.
+
 ## Safety defaults
 
 - Write tools off until `ENABLE_WRITE_TOOLS`
