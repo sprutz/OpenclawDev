@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+import httpx
 import uvicorn
 from fastapi import Depends, FastAPI, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -186,6 +187,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """Ready-to-use Grok Voice session.update fragment."""
         candidates = [
             Path(__file__).resolve().parents[3] / "grok-voice" / "prompts" / "system.md",
+            Path("/opt/openclaw-voice-bridge/grok-voice/prompts/system.md"),
             Path("/grok-voice/prompts/system.md"),
         ]
         instructions = None
@@ -210,6 +212,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ]
         if settings.enable_write_tools:
             allowed.extend(["openclaw_assign_task", "openclaw_control_session"])
+        mcp_url = settings.resolved_mcp_public_url or "REPLACE_WITH_PUBLIC_OR_TAILSCALE_MCP_URL/mcp"
         return {
             "type": "session.update",
             "session": {
@@ -219,7 +222,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "tools": [
                     {
                         "type": "mcp",
-                        "server_url": "REPLACE_WITH_PUBLIC_OR_TAILSCALE_MCP_URL/mcp",
+                        "server_url": mcp_url,
                         "server_label": "openclaw",
                         "server_description": "OpenClaw orchestrator control tools",
                         "authorization": settings.bridge_api_key,
@@ -228,6 +231,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 ],
             },
         }
+
+    @app.post("/v1/voice-agent/client-secret")
+    async def voice_client_secret(_: str = Depends(bridge_auth)) -> JSONResponse:
+        """Mint a short-lived xAI realtime client secret (server holds XAI_API_KEY)."""
+        if not settings.xai_api_key.strip():
+            return JSONResponse(
+                status_code=503,
+                content={"ok": False, "error": "XAI_API_KEY not configured on bridge"},
+            )
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    "https://api.x.ai/v1/realtime/client_secrets",
+                    headers={
+                        "Authorization": f"Bearer {settings.xai_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"expires_after": {"seconds": 300}},
+                )
+        except Exception as exc:  # noqa: BLE001
+            return JSONResponse(
+                status_code=502,
+                content={"ok": False, "error": f"xAI client_secrets request failed: {exc}"},
+            )
+        if resp.status_code >= 400:
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "ok": False,
+                    "error": "xAI client_secrets rejected request",
+                    "status": resp.status_code,
+                    "body": resp.text[:500],
+                },
+            )
+        return JSONResponse(status_code=200, content={"ok": True, "data": resp.json()})
 
     class EnsureMcpRootPath:
         """Mount('/mcp') leaves path='' for exact /mcp; StreamableHTTP expects '/'."""

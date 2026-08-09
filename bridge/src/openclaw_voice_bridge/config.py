@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     # Comma-separated MagicDNS hostnames, no scheme/path. Keep as str so env parsing
     # does not require JSON list encoding.
     mcp_public_hosts: str = ""
+    # Full public MCP URL for session.update fragments (optional).
+    # Example: https://your-vps.tailnet.ts.net/mcp
+    mcp_public_url: str = ""
+    # Optional xAI key for operator endpoints that mint realtime client secrets.
+    xai_api_key: str = ""
 
     # Second Brain (OpenClaw workspace knowledge store) — read-only for voice.
     second_brain_root: str = "/home/stan/clawd/second-brain"
@@ -90,6 +95,16 @@ class Settings(BaseSettings):
             parsed = json.loads(raw)
             return [str(x).strip() for x in parsed if str(x).strip()]
         return [part.strip() for part in raw.split(",") if part.strip()]
+
+    @property
+    def resolved_mcp_public_url(self) -> str:
+        explicit = self.mcp_public_url.strip()
+        if explicit:
+            return explicit.rstrip("/")
+        hosts = self.mcp_public_host_list
+        if hosts:
+            return f"https://{hosts[0]}/mcp"
+        return ""
 
     @property
     def openclaw_headers(self) -> dict[str, str]:

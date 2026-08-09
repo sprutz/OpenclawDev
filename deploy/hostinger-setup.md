@@ -87,22 +87,32 @@ Your MCP URL becomes:
 
 Keep write tools disabled until read-only voice sessions look good. Funnel exposes only the bridge (bearer-auth + audit log), not the OpenClaw gateway port.
 
-## 5) Create the Grok Voice agent
+## 5) Configure the Grok Voice agent (operator scripts)
 
-1. Open [xAI Voice Agent Builder](https://x.ai) / console Voice Agent Builder.
-2. Create agent: **OpenClaw Voice Control**.
-3. Paste instructions from `grok-voice/prompts/system.md` (also mirrored on the VPS at `/root/openclaw-backups/voice-agent-system.md`).
-4. Attach MCP tool from `grok-voice/configs/voice-agent-mcp.json`:
-   - `server_url`: `https://<your-tailscale-host>/mcp`
-   - `authorization`: same value as `BRIDGE_API_KEY`
-   - Include `openclaw_voice_unlock` first, then read-only tools.
-5. On the bridge host set `VOICE_SPOKEN_PASSWORD=pursuewithenthusiasm` (no spaces) and restart the bridge.
-6. Choose voice (`eve` recommended to start).
-7. Add guardrail: require confirmation for state-changing actions.
-8. Test in the playground:
-   - Speak unlock: “pursue with enthusiasm” (agent must call unlock with `pursuewithenthusiasm`)
-   - “Check OpenClaw health”
-   - “Read me today’s daily report”
+Do **not** hand-edit the xAI console for routine prompt/MCP changes. From a Cursor Cloud Agent (or any host with VPS + xAI secrets):
+
+```bash
+# 1) Sync prompt/MCP artifacts + spoken unlock env + restart bridge
+./scripts/vps/sync-voice-artifacts.sh
+
+# 2) Push saved Voice Agent (prompt + MCP allow-list) via xAI Agents API
+XAI_API_KEY=... BRIDGE_API_KEY=... MCP_PUBLIC_HOSTS=<funnel-host> \
+  python3 scripts/vps/update-xai-voice-agent.py
+```
+
+Bridge env on the VPS should include:
+
+- `VOICE_SPOKEN_PASSWORD=pursuewithenthusiasm` (no spaces; speak “pursue with enthusiasm”)
+- `MCP_PUBLIC_HOSTS=<funnel-host>`
+- optional `XAI_API_KEY` for `POST /v1/voice-agent/client-secret`
+
+If step 2 exits with code 3, the team’s Agents API is not enabled yet (`/v1/agents` 403). Enable it once in the xAI console for the Openclaw team; afterward Cursor keeps the Builder agent in sync.
+
+Smoke checks after sync:
+
+- Speak unlock: “pursue with enthusiasm”
+- “Check OpenClaw health”
+- “Read me today’s daily report”
 
 ## 6) Roll out writes safely
 

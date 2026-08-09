@@ -1,79 +1,73 @@
 # OpenclawDev — Grok Voice control for OpenClaw
 
-Connect **Grok Voice** (xAI Voice Agent Builder / Voice Agent API) to your self-hosted **OpenClaw** orchestrator on a Hostinger VPS (currently used via Telegram).
-
-## Recommended architecture
+Connect **Grok Voice** (xAI Voice Agent API / Builder) to your self-hosted **OpenClaw** orchestrator on a Hostinger VPS (currently used via Telegram).
 
 ```text
-Phone / Desktop / Tesla(BT)
-        │
-        ▼
-  Grok Voice Agent
-        │  Remote MCP (HTTPS via Tailscale Funnel)
-        ▼
- OpenClaw Voice Bridge  ← this repo (loopback :8787)
-        │  Gateway token on loopback
-        ▼
-   OpenClaw Gateway (stan)
-        │
-   Telegram / agents / tools
+  Grok Voice (Realtime API or Builder)
+            |
+            | HTTPS MCP (Tailscale Funnel)
+            v
+  OpenClaw Voice Bridge (:8787)
+            |
+            v
+  OpenClaw gateway (user stan)
 ```
 
-Why MCP: Grok Voice has native **remote MCP** support, so xAI executes tools server-side against your bridge. That means the MCP URL must be **public HTTPS** (Tailscale Funnel in front of the loopback bridge). No custom WebSocket function-call loop required for the Voice Agent Builder path.
+Why MCP: Grok Voice has native **remote MCP** support, so xAI executes tools server-side against your bridge. That means the MCP URL must be **public HTTPS** (Tailscale Funnel in front of the loopback bridge).
 
-## Repo layout
+## Operator path (Cursor updates everything)
 
-| Path | Contents |
-| --- | --- |
-| `bridge/` | FastAPI + MCP bridge service |
-| `grok-voice/` | Ready-to-paste system prompt, tool JSON, MCP agent config, dialogue examples |
-| `deploy/` | Hostinger/VPS + systemd notes |
-| `docker-compose.yml` | Container deploy for the bridge |
-| `.env.example` | Required secrets/config |
+Cursor Cloud Agents own:
 
-## Quick start (VPS)
+1. Bridge code + systemd on the VPS
+2. Prompt / MCP artifacts (`scripts/vps/sync-voice-artifacts.sh`)
+3. Spoken unlock env (`VOICE_SPOKEN_PASSWORD`)
+4. Pushing the saved xAI Voice Agent when the Agents API is enabled (`scripts/vps/update-xai-voice-agent.py`)
 
-1. Keep OpenClaw on private networking (Tailscale Serve or tailnet bind).
-2. Enable OpenClaw admin HTTP RPC:
-   ```bash
-   openclaw plugins enable admin-http-rpc
-   openclaw gateway restart
-   ```
-3. Copy `.env.example` → `.env` and set:
+Artifacts live in `grok-voice/` and are mirrored on the VPS — operators should not need to hand-edit the xAI console.
+
+```bash
+# Sync prompt/MCP/docs + restart bridge
+./scripts/vps/sync-voice-artifacts.sh
+
+# Update saved Voice Agent via xAI Agents API (requires team enablement)
+XAI_API_KEY=... BRIDGE_API_KEY=... MCP_PUBLIC_HOSTS=... \
+  ./scripts/vps/update-xai-voice-agent.py
+```
+
+If `update-xai-voice-agent.py` exits 3, the team’s Agents API is still disabled (`/v1/agents` 403). That is the only xAI console gate; enable it once so agents can keep the Builder agent in sync without UI edits.
+
+Bridge helpers:
+
+- `GET /v1/voice-agent/session` — full `session.update` (prompt + MCP URL from `MCP_PUBLIC_HOSTS`)
+- `POST /v1/voice-agent/client-secret` — short-lived realtime token (needs `XAI_API_KEY` on bridge)
+
+## Quick start
+
+1. Deploy OpenClaw on the VPS (user `stan`).
+2. Install / restart the bridge — see [`deploy/hostinger-setup.md`](deploy/hostinger-setup.md).
+3. Set `.env`:
    - `BRIDGE_API_KEY`
    - `OPENCLAW_GATEWAY_TOKEN`
-4. Start the bridge (`systemd` or `docker compose`) — see [`deploy/hostinger-setup.md`](deploy/hostinger-setup.md).
-5. In Voice Agent Builder:
-   - Paste [`grok-voice/prompts/system.md`](grok-voice/prompts/system.md)
-   - Attach MCP from [`grok-voice/configs/voice-agent-mcp.json`](grok-voice/configs/voice-agent-mcp.json)
-   - Include `openclaw_voice_unlock` first; keep writes off initially
-   - Bridge env: `VOICE_SPOKEN_PASSWORD=pursuewithenthusiasm` (speak “pursue with enthusiasm”)
-6. After a few clean sessions, set `ENABLE_WRITE_TOOLS=true` and add write tools.
-
-## Ready-to-paste artifacts
-
-- System prompt: `grok-voice/prompts/system.md`
-- Function schemas: `grok-voice/configs/tools.json`
-- Voice Agent MCP config: `grok-voice/configs/voice-agent-mcp.json`
-- Confirmation dialogues: `grok-voice/examples/dialogues.md`
+   - `MCP_PUBLIC_HOSTS=<funnel-host>`
+   - `VOICE_SPOKEN_PASSWORD=pursuewithenthusiasm` (speak “pursue with enthusiasm”)
+   - optional `XAI_API_KEY` for client-secret minting
+4. Publish MCP with Tailscale Funnel.
+5. Run the sync + update scripts above (Cursor does this).
+6. After clean read-only sessions, set `ENABLE_WRITE_TOOLS=true`.
 
 ## Safety defaults
 
-- Write tools off until you flip `ENABLE_WRITE_TOOLS`
+- Write tools off until `ENABLE_WRITE_TOOLS`
 - `confirmed=true` required for state changes
+- Spoken unlock gate before other tools
 - Bearer auth + rate limit + JSONL audit log
-- Bind bridge to `127.0.0.1` and publish only via Tailscale
+- Bridge on `127.0.0.1`; public only via Tailscale Funnel
 
 ## Cursor as operator (Hostinger VPS)
 
-To make Cursor Cloud Agents the main way you maintain OpenClaw:
-
-1. Add Tailscale + SSH + gateway secrets (see [`deploy/cursor-operator-access.md`](deploy/cursor-operator-access.md))
-2. Use `scripts/vps/*` from a Cloud Agent to join your tailnet and operate the VPS
-3. Keep OpenClaw private (loopback/Tailscale only)
-
-Live OpenClaw runs as user **`stan`**. Ops baseline (updates, Grok/xAI, security): [`deploy/openclaw-vps-ops.md`](deploy/openclaw-vps-ops.md).
+See [`deploy/cursor-operator-access.md`](deploy/cursor-operator-access.md) and [`deploy/openclaw-vps-ops.md`](deploy/openclaw-vps-ops.md). Live OpenClaw runs as **`stan`**.
 
 ## Company context
 
-Configured for **QDS Systems** industrial control workflows. Edit company/agent names in the system prompt and `.env` as needed.
+Configured for **QDS Systems** industrial control workflows.

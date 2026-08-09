@@ -1,26 +1,29 @@
 # Grok Voice Agent artifacts
 
-Ready-to-paste materials for Voice Agent Builder / Voice Agent API.
+Source of truth for the OpenClaw voice agent. Cursor syncs these to the VPS and pushes them to xAI when the Agents API is available.
 
 | File | Use |
 | --- | --- |
-| `prompts/system.md` | Agent instructions / system prompt (includes spoken unlock) |
-| `configs/tools.json` | Function-calling tool schemas (non-MCP path) |
-| `configs/voice-agent-mcp.json` | Recommended Remote MCP attachment config |
-| `examples/dialogues.md` | Unlock + confirmation-style spoken flows |
+| `prompts/system.md` | Agent instructions (spoken unlock + tools) |
+| `configs/tools.json` | Function-calling schemas (non-MCP path) |
+| `configs/voice-agent-mcp.json` | Remote MCP attachment config |
+| `examples/dialogues.md` | Unlock + confirmation spoken flows |
 
 ## Spoken unlock
 
 - Bridge env: `VOICE_SPOKEN_PASSWORD=pursuewithenthusiasm` (no spaces)
 - User may speak: “pursue with enthusiasm”
-- Agent must call `openclaw_voice_unlock` with `passphrase=pursuewithenthusiasm`
-- Bridge accepts spaced or compacted speech via compact matching
+- Agent calls `openclaw_voice_unlock` with `passphrase=pursuewithenthusiasm`
+- Bridge compact-matches spaced / punctuated STT
 
-## Builder checklist
+## How config is applied
 
-1. Create / open agent **OpenClaw Voice Control**
-2. Replace instructions with `prompts/system.md` (VPS copies listed in `voice-agent-mcp.json` → `rollout_notes.vps_instruction_copies`)
-3. Attach MCP using `configs/voice-agent-mcp.json` values
-4. Ensure `openclaw_voice_unlock` is first in `allowed_tools`
-5. Voice: `eve` (or your preference)
-6. Guardrail: confirm before write/state changes
+1. Edit files here in git
+2. `scripts/vps/sync-voice-artifacts.sh` → VPS copies + bridge restart
+3. `scripts/vps/update-xai-voice-agent.py` → saved xAI agent (when `/v1/agents` is enabled)
+
+VPS mirrors:
+
+- `/opt/openclaw-voice-bridge/grok-voice/...`
+- `/root/openclaw-backups/voice-agent-system.md`
+- `/home/stan/clawd/second-brain/docs/voice-agent-system.md`
