@@ -71,6 +71,8 @@ To make Cursor Cloud Agents the main way you maintain OpenClaw:
 2. Use `scripts/vps/*` from a Cloud Agent to join your tailnet and operate the VPS
 3. Keep OpenClaw private (loopback/Tailscale only)
 
+Live OpenClaw runs as user **`stan`**. Ops baseline (updates, Grok/xAI, security): [`deploy/openclaw-vps-ops.md`](deploy/openclaw-vps-ops.md).
+
 ## Company context
 
 Configured for **QDS Systems** industrial control workflows. Edit company/agent names in the system prompt and `.env` as needed.
