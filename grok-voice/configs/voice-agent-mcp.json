@@ -7,6 +7,8 @@
     "QDS Systems",
     "Second Brain",
     "daily report",
+    "pursue",
+    "enthusiasm",
     "orchestrator",
     "Telegram",
     "historian",
@@ -41,6 +43,8 @@
               "QDS Systems",
               "Second Brain",
               "daily report",
+              "pursue",
+              "enthusiasm",
               "orchestrator",
               "historian",
               "PLC",
@@ -85,7 +89,7 @@
       "openclaw_search_second_brain",
       "openclaw_read_second_brain"
     ],
-    "spoken_unlock": "Set VOICE_SPOKEN_PASSWORD on the bridge. Paste updated grok-voice/prompts/system.md into Voice Agent Builder. Allow openclaw_voice_unlock on the MCP server.",
+    "spoken_unlock": "Bridge VOICE_SPOKEN_PASSWORD must match the spoken phrase. Paste grok-voice/prompts/system.md into Voice Agent Builder. Allow openclaw_voice_unlock first in MCP allowed_tools. Do not put the passphrase in the agent prompt.",
     "phase_2_writes": [
       "openclaw_assign_task",
       "openclaw_control_session"

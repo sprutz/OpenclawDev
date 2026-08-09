@@ -22,7 +22,7 @@ async def test_voice_unlock_gate(tmp_path):
         bridge_api_key="k",
         openclaw_gateway_token="g",
         audit_log_path=str(tmp_path / "a.jsonl"),
-        voice_spoken_password="Quebec Delta Seven",
+        voice_spoken_password="pursue with enthusiasm",
         voice_unlock_ttl_seconds=600,
         enable_write_tools=False,
     )
@@ -38,7 +38,10 @@ async def test_voice_unlock_gate(tmp_path):
     still = await tools.dispatch("openclaw_health")
     assert still.ok is False
 
-    ok = await tools.dispatch("openclaw_voice_unlock", {"passphrase": "quebec delta seven"})
+    ok = await tools.dispatch(
+        "openclaw_voice_unlock",
+        {"passphrase": "Pursue with enthusiasm!"},
+    )
     assert ok.ok is True
 
     health = await tools.dispatch("openclaw_health")
@@ -46,4 +49,4 @@ async def test_voice_unlock_gate(tmp_path):
 
 
 def test_normalize_passphrase():
-    assert normalize_passphrase("  Quebec, Delta-Seven! ") == "quebec delta seven"
+    assert normalize_passphrase("  Pursue, with-Enthusiasm! ") == "pursue with enthusiasm"

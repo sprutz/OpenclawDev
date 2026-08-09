@@ -1,5 +1,17 @@
 # Confirmation-style dialogue examples
 
+## Spoken unlock (required first)
+
+**You:** What’s the status of OpenClaw?
+
+**Agent:** Voice control is locked. Please say the access passphrase.
+
+**You:** *(speaks the access passphrase)*
+
+**Agent:** Unlocking now.  
+*(calls `openclaw_voice_unlock` with the heard passphrase)*  
+Unlocked. How can I help?
+
 ## Read-only status
 
 **You:** What’s the status of OpenClaw?
