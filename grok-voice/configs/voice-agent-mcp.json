@@ -5,6 +5,8 @@
   "keyterms": [
     "OpenClaw",
     "QDS Systems",
+    "Second Brain",
+    "daily report",
     "orchestrator",
     "Telegram",
     "historian",
@@ -52,7 +54,11 @@
             "openclaw_health",
             "openclaw_list_agents",
             "openclaw_get_status",
-            "openclaw_get_summary"
+            "openclaw_get_summary",
+            "openclaw_read_daily_report",
+            "openclaw_list_second_brain",
+            "openclaw_search_second_brain",
+            "openclaw_read_second_brain"
           ]
         }
       ]
@@ -63,7 +69,11 @@
       "openclaw_health",
       "openclaw_list_agents",
       "openclaw_get_status",
-      "openclaw_get_summary"
+      "openclaw_get_summary",
+      "openclaw_read_daily_report",
+      "openclaw_list_second_brain",
+      "openclaw_search_second_brain",
+      "openclaw_read_second_brain"
     ],
     "phase_2_writes": [
       "openclaw_assign_task",

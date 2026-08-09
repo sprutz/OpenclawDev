@@ -52,6 +52,72 @@
   },
   {
     "type": "function",
+    "name": "openclaw_read_daily_report",
+    "description": "Read the Second Brain daily journal/report for a date (YYYY-MM-DD). Omit date for today; falls back to the latest available report.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "Optional journal date YYYY-MM-DD"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_list_second_brain",
+    "description": "List Second Brain daily journals and/or knowledge docs",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["journal", "docs", "both"]
+        },
+        "limit": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_search_second_brain",
+    "description": "Search Second Brain journals and docs by keyword",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_read_second_brain",
+    "description": "Read a Second Brain document by relative path (e.g. docs/qds-terafab-opportunity.md)",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": ["path"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
     "name": "openclaw_assign_task",
     "description": "Assign a new task to an OpenClaw agent or the orchestrator. Requires confirmed=true after explicit user confirmation.",
     "parameters": {

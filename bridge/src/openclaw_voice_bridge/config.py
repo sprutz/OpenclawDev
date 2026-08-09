@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     # does not require JSON list encoding.
     mcp_public_hosts: str = ""
 
+    # Second Brain (OpenClaw workspace knowledge store) — read-only for voice.
+    second_brain_root: str = "/home/stan/clawd/second-brain"
+
     @field_validator("allow_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:

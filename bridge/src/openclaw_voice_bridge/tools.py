@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from .audit import AuditLogger
 from .config import Settings
 from .openclaw_client import OpenClawClient, OpenClawError, TelegramBridge
+from . import second_brain as sb
 
 Priority = Literal["low", "normal", "high", "urgent"]
 SessionAction = Literal["start", "pause", "resume", "stop"]
@@ -47,6 +48,10 @@ class VoiceTools:
             "openclaw_control_session": self.control_session,
             "openclaw_get_summary": self.get_summary,
             "openclaw_health": self.health,
+            "openclaw_read_daily_report": self.read_daily_report,
+            "openclaw_list_second_brain": self.list_second_brain,
+            "openclaw_search_second_brain": self.search_second_brain,
+            "openclaw_read_second_brain": self.read_second_brain,
         }
         handler = handlers.get(name)
         if handler is None:
@@ -192,6 +197,97 @@ class VoiceTools:
             spoken_hint="Summary ready.",
         )
 
+    async def read_daily_report(self, date: str | None = None) -> ToolResult:
+        """Read Second Brain daily journal (YYYY-MM-DD). Defaults to today, else latest."""
+        try:
+            data = sb.read_daily_report(self.settings.second_brain_root, date)
+        except (FileNotFoundError, ValueError) as exc:
+            return ToolResult(
+                ok=False,
+                tool="openclaw_read_daily_report",
+                error=str(exc),
+                spoken_hint="I could not find a daily report in Second Brain.",
+            )
+        day = data["date"]
+        fallback = data.get("fallback_to_latest")
+        hint = f"Daily report for {day}."
+        if fallback:
+            hint = f"No report for the requested day; reading the latest report from {day}."
+        return ToolResult(
+            ok=True,
+            tool="openclaw_read_daily_report",
+            data=data,
+            spoken_hint=hint,
+        )
+
+    async def list_second_brain(
+        self,
+        kind: str = "both",
+        limit: int = 20,
+    ) -> ToolResult:
+        """List Second Brain journals and/or docs."""
+        kind_n = (kind or "both").strip().lower()
+        if kind_n not in {"journal", "docs", "both"}:
+            return ToolResult(
+                ok=False,
+                tool="openclaw_list_second_brain",
+                error="kind must be journal, docs, or both",
+                spoken_hint="I can list journals, docs, or both.",
+            )
+        try:
+            data: dict[str, Any] = {"root": self.settings.second_brain_root, "kind": kind_n}
+            if kind_n in {"journal", "both"}:
+                data["journals"] = sb.list_journals(self.settings.second_brain_root, limit=limit)
+            if kind_n in {"docs", "both"}:
+                data["docs"] = sb.list_docs(self.settings.second_brain_root, limit=limit)
+        except (FileNotFoundError, ValueError) as exc:
+            return ToolResult(
+                ok=False,
+                tool="openclaw_list_second_brain",
+                error=str(exc),
+                spoken_hint="Second Brain is not available right now.",
+            )
+        return ToolResult(
+            ok=True,
+            tool="openclaw_list_second_brain",
+            data=data,
+            spoken_hint="Second Brain listing ready.",
+        )
+
+    async def search_second_brain(self, query: str, limit: int = 8) -> ToolResult:
+        try:
+            hits = sb.search_second_brain(self.settings.second_brain_root, query, limit=limit)
+        except (FileNotFoundError, ValueError) as exc:
+            return ToolResult(
+                ok=False,
+                tool="openclaw_search_second_brain",
+                error=str(exc),
+                spoken_hint="I could not search Second Brain.",
+            )
+        return ToolResult(
+            ok=True,
+            tool="openclaw_search_second_brain",
+            data={"query": query, "hits": hits, "count": len(hits)},
+            spoken_hint=f"Found {len(hits)} Second Brain matches." if hits else "No Second Brain matches.",
+        )
+
+    async def read_second_brain(self, path: str) -> ToolResult:
+        try:
+            data = sb.read_doc(self.settings.second_brain_root, path)
+        except (FileNotFoundError, ValueError) as exc:
+            return ToolResult(
+                ok=False,
+                tool="openclaw_read_second_brain",
+                error=str(exc),
+                spoken_hint="I could not open that Second Brain document.",
+            )
+        return ToolResult(
+            ok=True,
+            tool="openclaw_read_second_brain",
+            data=data,
+            spoken_hint="Document ready.",
+        )
+
     async def assign_task(
         self,
         description: str,
@@ -299,6 +395,78 @@ def tool_specs(*, include_write_tools: bool = True) -> list[dict[str, Any]]:
                         "description": "Optional focus area (agent, project, or omit for all)",
                     }
                 },
+                "additionalProperties": False,
+            },
+        },
+        {
+            "type": "function",
+            "name": "openclaw_read_daily_report",
+            "description": (
+                "Read the Second Brain daily journal/report for a date (YYYY-MM-DD). "
+                "Omit date for today; falls back to the latest available report. "
+                "Use spoken_text / content to read the report aloud while driving."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "description": "Optional journal date YYYY-MM-DD",
+                    }
+                },
+                "additionalProperties": False,
+            },
+        },
+        {
+            "type": "function",
+            "name": "openclaw_list_second_brain",
+            "description": "List Second Brain daily journals and/or knowledge docs",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": ["journal", "docs", "both"],
+                        "description": "What to list",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max items per section",
+                    },
+                },
+                "additionalProperties": False,
+            },
+        },
+        {
+            "type": "function",
+            "name": "openclaw_search_second_brain",
+            "description": "Search Second Brain journals and docs by keyword",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search text"},
+                    "limit": {"type": "integer", "description": "Max hits"},
+                },
+                "required": ["query"],
+                "additionalProperties": False,
+            },
+        },
+        {
+            "type": "function",
+            "name": "openclaw_read_second_brain",
+            "description": (
+                "Read a Second Brain document by relative path "
+                "(e.g. docs/qds-terafab-opportunity.md or journal/2026-04-18.md)"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Relative path under the Second Brain root",
+                    }
+                },
+                "required": ["path"],
                 "additionalProperties": False,
             },
         },

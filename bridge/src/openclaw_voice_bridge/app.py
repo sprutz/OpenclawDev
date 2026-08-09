@@ -202,6 +202,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "openclaw_list_agents",
             "openclaw_get_status",
             "openclaw_get_summary",
+            "openclaw_read_daily_report",
+            "openclaw_list_second_brain",
+            "openclaw_search_second_brain",
+            "openclaw_read_second_brain",
         ]
         if settings.enable_write_tools:
             allowed.extend(["openclaw_assign_task", "openclaw_control_session"])

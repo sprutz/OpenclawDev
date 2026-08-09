@@ -41,6 +41,42 @@ def build_mcp(tools: VoiceTools) -> MCPServer:
             args["target"] = target
         return (await tools.dispatch("openclaw_get_summary", args)).model_dump()
 
+    @mcp.tool(name="openclaw_read_daily_report")
+    async def openclaw_read_daily_report(date: str | None = None) -> dict[str, Any]:
+        """Read the Second Brain daily journal/report. Omit date for today/latest."""
+        args: dict[str, Any] = {}
+        if date:
+            args["date"] = date
+        return (await tools.dispatch("openclaw_read_daily_report", args)).model_dump()
+
+    @mcp.tool(name="openclaw_list_second_brain")
+    async def openclaw_list_second_brain(
+        kind: str = "both",
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """List Second Brain journals and/or docs."""
+        return (
+            await tools.dispatch(
+                "openclaw_list_second_brain",
+                {"kind": kind, "limit": limit},
+            )
+        ).model_dump()
+
+    @mcp.tool(name="openclaw_search_second_brain")
+    async def openclaw_search_second_brain(query: str, limit: int = 8) -> dict[str, Any]:
+        """Search Second Brain journals and docs."""
+        return (
+            await tools.dispatch(
+                "openclaw_search_second_brain",
+                {"query": query, "limit": limit},
+            )
+        ).model_dump()
+
+    @mcp.tool(name="openclaw_read_second_brain")
+    async def openclaw_read_second_brain(path: str) -> dict[str, Any]:
+        """Read a Second Brain document by relative path."""
+        return (await tools.dispatch("openclaw_read_second_brain", {"path": path})).model_dump()
+
     @mcp.tool(name="openclaw_assign_task")
     async def openclaw_assign_task(
         description: str,
