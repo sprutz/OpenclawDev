@@ -21,7 +21,9 @@ TimeoutStopSec=30
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-ProtectHome=true
+# read-only so Second Brain under /home/stan can be read for voice tools
+ProtectHome=read-only
+BindReadOnlyPaths=/home/stan/clawd/second-brain
 ReadWritePaths=/var/log/openclaw-voice-bridge /opt/openclaw-voice-bridge
 
 [Install]
