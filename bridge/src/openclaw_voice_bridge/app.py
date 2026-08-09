@@ -107,16 +107,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    @app.middleware("http")
-    async def normalize_mcp_path(request: Request, call_next):  # noqa: ANN001
-        # Starlette Mount("/mcp") leaves path="" for exact /mcp, which 404s the
-        # StreamableHTTP app (it expects "/"). xAI's custom MCP form uses /mcp.
-        if request.scope.get("path") == "/mcp":
-            request.scope["path"] = "/mcp/"
-            if request.scope.get("raw_path") == b"/mcp":
-                request.scope["raw_path"] = b"/mcp/"
-        return await call_next(request)
-
     async def bridge_auth(
         request: Request,
         authorization: str | None = Header(default=None),
@@ -213,6 +203,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
         }
 
+    class EnsureMcpRootPath:
+        """Mount('/mcp') leaves path='' for exact /mcp; StreamableHTTP expects '/'."""
+
+        def __init__(self, inner):  # noqa: ANN001
+            self.inner = inner
+
+        async def __call__(self, scope, receive, send):  # noqa: ANN001
+            if scope["type"] == "http" and scope.get("path") in ("",):
+                scope = dict(scope)
+                scope["path"] = "/"
+                scope["raw_path"] = b"/"
+            await self.inner(scope, receive, send)
+
     class McpAuthMiddleware:
         """Bearer/X-API-Key gate in front of the MCP ASGI app."""
 
@@ -223,6 +226,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if scope["type"] != "http":
                 await self.inner(scope, receive, send)
                 return
+
+            # xAI (and similar) probe with GET. Passing GET into StreamableHTTP opens
+            # an SSE stream that never ends and fails their "Couldn't reach" check.
+            # Answer GET immediately; real MCP traffic uses POST.
+            if scope.get("method") == "GET":
+                body = (
+                    b'{"ok":true,"service":"openclaw-voice-bridge",'
+                    b'"transport":"streamable-http","mcp":true}'
+                )
+                await send(
+                    {
+                        "type": "http.response.start",
+                        "status": 200,
+                        "headers": [
+                            (b"content-type", b"application/json"),
+                            (b"content-length", str(len(body)).encode("ascii")),
+                            (b"cache-control", b"no-store"),
+                        ],
+                    }
+                )
+                await send({"type": "http.response.body", "body": body})
+                return
+
             headers = {
                 k.decode("latin1").lower(): v.decode("latin1")
                 for k, v in scope.get("headers", [])
@@ -247,7 +273,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await self.inner(scope, receive, send)
 
     # Mount once; clients may use /mcp or /mcp/ (no redirect).
-    app.mount("/mcp", McpAuthMiddleware(mcp_app))
+    app.mount("/mcp", McpAuthMiddleware(EnsureMcpRootPath(mcp_app)))
     app.state.settings = settings
     app.state.tools = tools
     return app
