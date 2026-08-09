@@ -9,9 +9,11 @@ This guide assumes OpenClaw is already running on the VPS and reachable over Tel
 openclaw gateway status
 openclaw channels status --probe
 
-# Enable admin HTTP RPC (recommended for clean status/list APIs)
-openclaw plugins enable admin-http-rpc
-openclaw gateway restart
+# Enable admin HTTP RPC (recommended for clean status/list APIs).
+# If enable is "blocked by allowlist", add the plugin id to plugins.allow first:
+#   openclaw config set plugins.allow '["telegram","xai","openai","admin-http-rpc",...]'
+# or edit ~/.openclaw/openclaw.json under plugins.allow, then:
+sudo -u stan -H bash -lc 'export XDG_RUNTIME_DIR=/run/user/1001; openclaw plugins enable admin-http-rpc; openclaw gateway restart'
 
 # Verify
 curl -sS http://127.0.0.1:18789/api/v1/admin/rpc \
@@ -37,14 +39,15 @@ Do **not** expose `/tools/invoke`, admin RPC, or this voice bridge to the public
 
 ```bash
 sudo mkdir -p /opt/openclaw-voice-bridge /var/log/openclaw-voice-bridge
-sudo chown "$USER":"$USER" /opt/openclaw-voice-bridge /var/log/openclaw-voice-bridge
+sudo git clone --branch cursor/deploy-grok-voice-bridge-31c7 https://github.com/sprutz/OpenclawDev.git /opt/openclaw-voice-bridge
+sudo chown -R ubuntu:ubuntu /opt/openclaw-voice-bridge /var/log/openclaw-voice-bridge
 
-cd /opt
-git clone https://github.com/sprutz/OpenclawDev.git openclaw-voice-bridge
-cd openclaw-voice-bridge
+cd /opt/openclaw-voice-bridge
 cp .env.example .env
-# edit .env: BRIDGE_API_KEY, OPENCLAW_GATEWAY_TOKEN, etc.
-python3 -m pip install --user -r bridge/requirements.txt
+# edit .env: BRIDGE_API_KEY, OPENCLAW_GATEWAY_TOKEN
+# ALLOW_ORIGINS must be JSON, e.g. ["*"]
+sudo apt-get install -y python3.12-venv
+sudo -u ubuntu -H bash -lc 'cd /opt/openclaw-voice-bridge && python3 -m venv .venv && .venv/bin/pip install -r bridge/requirements.txt'
 ```
 
 ### Option A — systemd
@@ -65,19 +68,24 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
-## 4) Expose only the bridge over Tailscale
+## 4) Expose the bridge to xAI over Tailscale Funnel
 
-Example with Tailscale Serve to the local bridge:
+xAI Voice Agent Builder executes remote MCP tools from **xAI's cloud**, so the MCP URL must be publicly reachable HTTPS. Tailnet-only Serve is not enough; use **Funnel** (or another reverse proxy) in front of the loopback bridge.
+
+1. Approve Serve/Funnel for the VPS node in Tailscale admin (the CLI prints an approval URL if disabled).
+2. Publish the local bridge:
 
 ```bash
-# bridge listening on 127.0.0.1:8787
-tailscale serve --bg --https=443 http://127.0.0.1:8787
-tailscale serve status
+# bridge listening on 127.0.0.1:8787 — keep OpenClaw itself on loopback
+tailscale funnel --bg --https=443 http://127.0.0.1:8787
+tailscale funnel status
 ```
 
 Your MCP URL becomes:
 
 `https://<vps-magicdns-name>.ts.net/mcp`
+
+Keep write tools disabled until read-only voice sessions look good. Funnel exposes only the bridge (bearer-auth + audit log), not the OpenClaw gateway port.
 
 ## 5) Create the Grok Voice agent
 

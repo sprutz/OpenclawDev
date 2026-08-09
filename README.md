@@ -9,17 +9,17 @@ Phone / Desktop / Tesla(BT)
         │
         ▼
   Grok Voice Agent
-        │  Remote MCP (HTTPS over Tailscale)
+        │  Remote MCP (HTTPS via Tailscale Funnel)
         ▼
- OpenClaw Voice Bridge  ← this repo
-        │  Gateway token on loopback/tailnet
+ OpenClaw Voice Bridge  ← this repo (loopback :8787)
+        │  Gateway token on loopback
         ▼
-   OpenClaw Gateway
+   OpenClaw Gateway (stan)
         │
    Telegram / agents / tools
 ```
 
-Why MCP: Grok Voice has native **remote MCP** support, so xAI executes tools server-side against your bridge. No custom WebSocket function-call loop required for the Voice Agent Builder path.
+Why MCP: Grok Voice has native **remote MCP** support, so xAI executes tools server-side against your bridge. That means the MCP URL must be **public HTTPS** (Tailscale Funnel in front of the loopback bridge). No custom WebSocket function-call loop required for the Voice Agent Builder path.
 
 ## Repo layout
 
