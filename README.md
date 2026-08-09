@@ -46,7 +46,8 @@ Why MCP: Grok Voice has native **remote MCP** support, so xAI executes tools ser
 5. In Voice Agent Builder:
    - Paste [`grok-voice/prompts/system.md`](grok-voice/prompts/system.md)
    - Attach MCP from [`grok-voice/configs/voice-agent-mcp.json`](grok-voice/configs/voice-agent-mcp.json)
-   - Start **read-only** (`allowed_tools` without assign/control)
+   - Include `openclaw_voice_unlock` first; keep writes off initially
+   - Bridge env: `VOICE_SPOKEN_PASSWORD=pursuewithenthusiasm` (speak “pursue with enthusiasm”)
 6. After a few clean sessions, set `ENABLE_WRITE_TOOLS=true` and add write tools.
 
 ## Ready-to-paste artifacts

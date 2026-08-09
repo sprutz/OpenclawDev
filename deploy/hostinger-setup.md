@@ -91,17 +91,18 @@ Keep write tools disabled until read-only voice sessions look good. Funnel expos
 
 1. Open [xAI Voice Agent Builder](https://x.ai) / console Voice Agent Builder.
 2. Create agent: **OpenClaw Voice Control**.
-3. Paste instructions from `grok-voice/prompts/system.md`.
+3. Paste instructions from `grok-voice/prompts/system.md` (also mirrored on the VPS at `/root/openclaw-backups/voice-agent-system.md`).
 4. Attach MCP tool from `grok-voice/configs/voice-agent-mcp.json`:
    - `server_url`: `https://<your-tailscale-host>/mcp`
    - `authorization`: same value as `BRIDGE_API_KEY`
-   - Start with read-only `allowed_tools` only.
-5. Choose voice (`eve` recommended to start).
-6. Add guardrail: require confirmation for state-changing actions.
-7. Test in the playground:
+   - Include `openclaw_voice_unlock` first, then read-only tools.
+5. On the bridge host set `VOICE_SPOKEN_PASSWORD=pursuewithenthusiasm` (no spaces) and restart the bridge.
+6. Choose voice (`eve` recommended to start).
+7. Add guardrail: require confirmation for state-changing actions.
+8. Test in the playground:
+   - Speak unlock: “pursue with enthusiasm” (agent must call unlock with `pursuewithenthusiasm`)
    - “Check OpenClaw health”
-   - “List agents”
-   - “What’s the gateway status?”
+   - “Read me today’s daily report”
 
 ## 6) Roll out writes safely
 
