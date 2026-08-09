@@ -56,22 +56,32 @@ class Settings(BaseSettings):
     voice_agent_name: str = "OpenClaw Voice Control"
 
     # Public hostname(s) for MCP DNS-rebinding protection (Tailscale Funnel / MagicDNS).
-    # Comma-separated MagicDNS hostnames, no scheme/path.
-    mcp_public_hosts: list[str] = Field(default_factory=list)
-
-    @field_validator("mcp_public_hosts", mode="before")
-    @classmethod
-    def _split_hosts(cls, value: object) -> object:
-        if isinstance(value, str):
-            return [part.strip() for part in value.split(",") if part.strip()]
-        return value
+    # Comma-separated MagicDNS hostnames, no scheme/path. Keep as str so env parsing
+    # does not require JSON list encoding.
+    mcp_public_hosts: str = ""
 
     @field_validator("allow_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
         if isinstance(value, str):
+            # Support JSON list or comma-separated values.
+            stripped = value.strip()
+            if stripped.startswith("["):
+                return value
             return [part.strip() for part in value.split(",") if part.strip()]
         return value
+
+    @property
+    def mcp_public_host_list(self) -> list[str]:
+        raw = self.mcp_public_hosts.strip()
+        if not raw:
+            return []
+        if raw.startswith("["):
+            import json
+
+            parsed = json.loads(raw)
+            return [str(x).strip() for x in parsed if str(x).strip()]
+        return [part.strip() for part in raw.split(",") if part.strip()]
 
     @property
     def openclaw_headers(self) -> dict[str, str]:

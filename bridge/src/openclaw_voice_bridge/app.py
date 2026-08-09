@@ -46,7 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "localhost:*",
         "[::1]:*",
     ]
-    for host in settings.mcp_public_hosts:
+    for host in settings.mcp_public_host_list:
         host = host.strip().removeprefix("https://").removeprefix("http://").rstrip("/")
         if not host:
             continue
@@ -83,7 +83,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             settings.port,
             settings.backend_mode,
             settings.enable_write_tools,
-            settings.mcp_public_hosts,
+            settings.mcp_public_host_list,
         )
         async with session_manager.run():
             try:
