@@ -107,6 +107,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def normalize_mcp_path(request: Request, call_next):  # noqa: ANN001
+        # Starlette Mount("/mcp") leaves path="" for exact /mcp, which 404s the
+        # StreamableHTTP app (it expects "/"). xAI's custom MCP form uses /mcp.
+        if request.scope.get("path") == "/mcp":
+            request.scope["path"] = "/mcp/"
+            if request.scope.get("raw_path") == b"/mcp":
+                request.scope["raw_path"] = b"/mcp/"
+        return await call_next(request)
+
     async def bridge_auth(
         request: Request,
         authorization: str | None = Header(default=None),
