@@ -1,0 +1,116 @@
+{
+  "name": "OpenClaw Voice Control",
+  "voice": "eve",
+  "instructions_file": "../prompts/system.md",
+  "keyterms": [
+    "OpenClaw",
+    "QDS Systems",
+    "Second Brain",
+    "daily report",
+    "pursue",
+    "enthusiasm",
+    "pursuewithenthusiasm",
+    "orchestrator",
+    "Telegram",
+    "historian",
+    "PLC",
+    "SCADA",
+    "Tailscale",
+    "Terafab",
+    "FactoryCommand"
+  ],
+  "guardrails": [
+    "Session starts locked; call openclaw_voice_unlock with passphrase pursuewithenthusiasm (no spaces) before any other action",
+    "Strip STT trailing punctuation and spaces from the unlock tool argument",
+    "Require explicit spoken confirmation before any write/state-changing action",
+    "Do not invent status information",
+    "Keep replies short and professional",
+    "Escalate production or safety issues clearly",
+    "Second Brain tools are read-only"
+  ],
+  "session": {
+    "type": "session.update",
+    "session": {
+      "voice": "eve",
+      "turn_detection": {
+        "type": "server_vad",
+        "silence_duration_ms": 700
+      },
+      "audio": {
+        "input": {
+          "transcription": {
+            "language_hint": "en-US",
+            "keyterms": [
+              "OpenClaw",
+              "QDS Systems",
+              "Second Brain",
+              "daily report",
+              "pursue",
+              "enthusiasm",
+              "pursuewithenthusiasm",
+              "orchestrator",
+              "historian",
+              "PLC",
+              "SCADA",
+              "Terafab",
+              "FactoryCommand"
+            ]
+          }
+        }
+      },
+      "tools": [
+        {
+          "type": "mcp",
+          "server_url": "https://YOUR_FUNNEL_HOST.ts.net/mcp",
+          "server_label": "openclaw",
+          "server_description": "OpenClaw + Second Brain for QDS Systems: ops status and read-only daily reports/docs",
+          "authorization": "REPLACE_WITH_BRIDGE_API_KEY",
+          "allowed_tools": [
+            "openclaw_voice_unlock",
+            "openclaw_health",
+            "openclaw_list_agents",
+            "openclaw_get_status",
+            "openclaw_get_summary",
+            "openclaw_read_daily_report",
+            "openclaw_list_second_brain",
+            "openclaw_search_second_brain",
+            "openclaw_read_second_brain",
+            "openclaw_list_upgrades",
+            "openclaw_get_upgrade",
+            "openclaw_approve_upgrade",
+            "openclaw_reject_upgrade"
+          ]
+        }
+      ]
+    }
+  },
+  "rollout_notes": {
+    "phase_1_readonly": [
+      "openclaw_voice_unlock",
+      "openclaw_health",
+      "openclaw_list_agents",
+      "openclaw_get_status",
+      "openclaw_get_summary",
+      "openclaw_read_daily_report",
+      "openclaw_list_second_brain",
+      "openclaw_search_second_brain",
+      "openclaw_read_second_brain",
+      "openclaw_list_upgrades",
+      "openclaw_get_upgrade",
+      "openclaw_approve_upgrade",
+      "openclaw_reject_upgrade"
+    ],
+    "spoken_unlock": "Set VOICE_SPOKEN_PASSWORD=pursuewithenthusiasm on the bridge. Voice instructions in prompts/system.md tell the agent to call openclaw_voice_unlock with passphrase pursuewithenthusiasm (no spaces). Spaced speech still matches on the bridge via compact compare.",
+    "phase_2_writes": [
+      "openclaw_assign_task",
+      "openclaw_control_session"
+    ],
+    "enable_writes_env": "ENABLE_WRITE_TOOLS=true",
+    "auth_note": "Set authorization to the bridge API key from /root/openclaw-backups/bridge-api-key.txt (Bearer token value only, or full Bearer form per console).",
+    "vps_instruction_copies": [
+      "/opt/openclaw-voice-bridge/grok-voice/prompts/system.md",
+      "/root/openclaw-backups/voice-agent-system.md",
+      "/home/stan/clawd/second-brain/docs/voice-agent-system.md"
+    ]
+  }
+}

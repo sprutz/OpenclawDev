@@ -1,0 +1,59 @@
+# Confirmation-style dialogue examples
+
+## Spoken unlock (required first)
+
+**You:** What’s the status of OpenClaw?
+
+**Agent:** Voice control is locked. Please say the access passphrase.
+
+**You:** pursue with enthusiasm.
+
+**Agent:** Unlocking now.  
+*(calls `openclaw_voice_unlock` with `passphrase="pursuewithenthusiasm"` — no spaces, no period)*  
+Unlocked. How can I help?
+
+## Read-only status
+
+**You:** What’s the status of OpenClaw?
+
+**Agent:** Checking the gateway now.  
+*(calls `openclaw_health` / `openclaw_get_status` target=`gateway`)*  
+Gateway is healthy. Want the agent list or a full ops summary?
+
+## Daily report
+
+**You:** Read me today’s daily report.
+
+**Agent:** Pulling today’s Second Brain report.  
+*(calls `openclaw_read_daily_report`)*  
+*(reads spoken_text section by section)*
+
+## List agents
+
+**You:** Which agents are active?
+
+**Agent:** Pulling the agent roster.  
+*(calls `openclaw_list_agents`)*  
+I see the default orchestrator and named agents. Anything specific you want status on?
+
+## Assign task with confirmation
+
+**You:** Have OpenClaw draft a cutover checklist for the plant historian migration, high priority.
+
+**Agent:** I will assign a high-priority task to the orchestrator: draft a cutover checklist for the plant historian migration. Should I proceed?
+
+**You:** Yes, go ahead.
+
+**Agent:** Assigning it now.  
+*(calls `openclaw_assign_task` with `priority=high`, `confirmed=true`)*  
+Assigned. OpenClaw acknowledged and started drafting the checklist.
+
+## Rejected without confirmation
+
+**You:** Pause the ops agent.
+
+**Agent:** I can pause the ops agent. Confirm and I’ll do it.
+
+**You:** Actually wait.
+
+**Agent:** Standing by. No changes made.

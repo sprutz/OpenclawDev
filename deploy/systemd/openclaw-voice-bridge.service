@@ -1,0 +1,30 @@
+[Unit]
+Description=OpenClaw Grok Voice Bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/openclaw-voice-bridge/bridge
+EnvironmentFile=/opt/openclaw-voice-bridge/.env
+Environment=PYTHONPATH=/opt/openclaw-voice-bridge/bridge/src
+Environment=HOST=127.0.0.1
+Environment=PORT=8787
+# Prefer the project venv created during Hostinger setup.
+ExecStart=/opt/openclaw-voice-bridge/.venv/bin/python -m uvicorn openclaw_voice_bridge.app:create_app --factory --host 127.0.0.1 --port 8787
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+# read-only so Second Brain under /home/stan can be read for voice tools
+ProtectHome=read-only
+BindReadOnlyPaths=/home/stan/clawd/second-brain
+ReadWritePaths=/var/log/openclaw-voice-bridge /opt/openclaw-voice-bridge
+
+[Install]
+WantedBy=multi-user.target

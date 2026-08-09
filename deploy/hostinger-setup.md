@@ -1,0 +1,150 @@
+# Hostinger VPS setup — Grok Voice → OpenClaw
+
+This guide assumes OpenClaw is already running on the VPS and reachable over Telegram.
+
+## 1) Prerequisites on the VPS
+
+```bash
+# Confirm OpenClaw gateway is healthy
+openclaw gateway status
+openclaw channels status --probe
+
+# Enable admin HTTP RPC (recommended for clean status/list APIs).
+# If enable is "blocked by allowlist", add the plugin id to plugins.allow first:
+#   openclaw config set plugins.allow '["telegram","xai","openai","admin-http-rpc",...]'
+# or edit ~/.openclaw/openclaw.json under plugins.allow, then:
+sudo -u stan -H bash -lc 'export XDG_RUNTIME_DIR=/run/user/1001; openclaw plugins enable admin-http-rpc; openclaw gateway restart'
+
+# Verify
+curl -sS http://127.0.0.1:18789/api/v1/admin/rpc \
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"method":"health","params":{}}'
+```
+
+Also ensure gateway auth token is set (`OPENCLAW_GATEWAY_TOKEN` or `gateway.auth.token`).
+
+## 2) Private networking (strongly recommended)
+
+Install and log in to Tailscale on the VPS and on any admin devices.
+
+Preferred OpenClaw exposure patterns:
+
+- Keep OpenClaw on loopback and use Tailscale Serve, **or**
+- Bind OpenClaw to Tailnet only (`gateway.bind: "tailnet"`)
+
+Do **not** expose `/tools/invoke`, admin RPC, or this voice bridge to the public internet.
+
+## 3) Install the voice bridge
+
+```bash
+sudo mkdir -p /opt/openclaw-voice-bridge /var/log/openclaw-voice-bridge
+sudo git clone --branch cursor/deploy-grok-voice-bridge-31c7 https://github.com/sprutz/OpenclawDev.git /opt/openclaw-voice-bridge
+sudo chown -R ubuntu:ubuntu /opt/openclaw-voice-bridge /var/log/openclaw-voice-bridge
+
+cd /opt/openclaw-voice-bridge
+cp .env.example .env
+# edit .env: BRIDGE_API_KEY, OPENCLAW_GATEWAY_TOKEN
+# ALLOW_ORIGINS must be JSON, e.g. ["*"]
+sudo apt-get install -y python3.12-venv
+sudo -u ubuntu -H bash -lc 'cd /opt/openclaw-voice-bridge && python3 -m venv .venv && .venv/bin/pip install -r bridge/requirements.txt'
+```
+
+### Option A — systemd
+
+```bash
+sudo cp deploy/systemd/openclaw-voice-bridge.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now openclaw-voice-bridge
+sudo systemctl status openclaw-voice-bridge
+```
+
+### Option B — Docker Compose
+
+```bash
+# Ensure OPENCLAW_BASE_URL points at the host gateway
+# e.g. OPENCLAW_BASE_URL=http://host.docker.internal:18789
+docker compose up -d --build
+docker compose logs -f
+```
+
+## 4) Expose the bridge to xAI over Tailscale Funnel
+
+xAI Voice Agent Builder executes remote MCP tools from **xAI's cloud**, so the MCP URL must be publicly reachable HTTPS. Tailnet-only Serve is not enough; use **Funnel** (or another reverse proxy) in front of the loopback bridge.
+
+1. Approve Serve/Funnel for the VPS node in Tailscale admin (the CLI prints an approval URL if disabled).
+2. Publish the local bridge:
+
+```bash
+# bridge listening on 127.0.0.1:8787 — keep OpenClaw itself on loopback
+tailscale funnel --bg --https=443 http://127.0.0.1:8787
+tailscale funnel status
+```
+
+Your MCP URL becomes:
+
+`https://<vps-magicdns-name>.ts.net/mcp`
+
+Keep write tools disabled until read-only voice sessions look good. Funnel exposes only the bridge (bearer-auth + audit log), not the OpenClaw gateway port.
+
+## 5) Use the bridge-hosted voice UI
+
+Cursor syncs prompt/MCP/env; you talk through the bridge UI (no Voice Agent Builder paste):
+
+```bash
+./scripts/vps/sync-voice-artifacts.sh
+```
+
+Open: `https://<funnel-host>/voice`
+
+- Enter the bridge API key once (stored in the browser)
+- Tap **Start listening**
+- Speak unlock: “pursue with enthusiasm”
+- Then: “Check OpenClaw health” / “Read me today’s daily report”
+
+Bridge env should include `VOICE_SPOKEN_PASSWORD=pursuewithenthusiasm`, `MCP_PUBLIC_HOSTS=<funnel-host>`, and `XAI_API_KEY` (for realtime client secrets).
+
+Optional: `scripts/vps/update-xai-voice-agent.py` updates a saved Builder agent if the team’s Agents API is enabled.
+
+## 6) Roll out writes safely
+
+Only after read-only sessions look good:
+
+1. Set `ENABLE_WRITE_TOOLS=true` in `.env` and restart the bridge.
+2. Add write tools to the Voice Agent MCP `allowed_tools`.
+3. Keep `REQUIRE_CONFIRMATION=true`.
+4. Monitor `/var/log/openclaw-voice-bridge/audit.jsonl`.
+
+## 7) Optional Telegram temporary path
+
+If gateway HTTP is not ready yet:
+
+```env
+BACKEND_MODE=telegram
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...   # your private chat with the OpenClaw bot
+ENABLE_WRITE_TOOLS=true
+```
+
+This lets `openclaw_assign_task` inject a message into the same Telegram conversation you already use. Prefer `BACKEND_MODE=gateway` once admin RPC + chat completions are verified.
+
+## 8) Quick smoke tests
+
+```bash
+export BRIDGE=http://127.0.0.1:8787
+export KEY=your-bridge-api-key
+
+curl -sS "$BRIDGE/healthz"
+
+curl -sS "$BRIDGE/v1/tools" -H "Authorization: Bearer $KEY" | jq .
+
+curl -sS "$BRIDGE/v1/tools/invoke" \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"openclaw_health","arguments":{}}' | jq .
+```
+
+## 9) Phone / Tesla usage
+
+- Phone/desktop: Grok app → select **OpenClaw Voice Control** → talk.
+- Tesla for now: phone over Bluetooth hands-free using the same agent.

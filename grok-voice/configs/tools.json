@@ -1,0 +1,188 @@
+[
+  {
+    "type": "function",
+    "name": "openclaw_voice_unlock",
+    "description": "Unlock the voice session after the user speaks the access passphrase. Call this before any other tool when the session is locked.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "passphrase": {
+          "type": "string",
+          "description": "The spoken access passphrase exactly as heard"
+        }
+      },
+      "required": ["passphrase"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_health",
+    "description": "Check OpenClaw gateway health and connectivity",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_list_agents",
+    "description": "List all configured OpenClaw agents and related model aliases",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_get_status",
+    "description": "Get detailed status of a gateway, agent, task, or project",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Agent name, task ID, project name, or 'gateway'"
+        }
+      },
+      "required": ["target"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_get_summary",
+    "description": "Get a concise operational summary across agents/tasks",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Optional focus area (agent, project, or omit for all)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_read_daily_report",
+    "description": "Read the Second Brain daily journal/report for a date (YYYY-MM-DD). Omit date for today; falls back to the latest available report.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "Optional journal date YYYY-MM-DD"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_list_second_brain",
+    "description": "List Second Brain daily journals and/or knowledge docs",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["journal", "docs", "both"]
+        },
+        "limit": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_search_second_brain",
+    "description": "Search Second Brain journals and docs by keyword",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_read_second_brain",
+    "description": "Read a Second Brain document by relative path (e.g. docs/qds-terafab-opportunity.md)",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": ["path"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_assign_task",
+    "description": "Assign a new task to an OpenClaw agent or the orchestrator. Requires confirmed=true after explicit user confirmation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "type": "string",
+          "description": "Optional agent id/name. Defaults to orchestrator/main."
+        },
+        "description": {
+          "type": "string",
+          "description": "Clear task description to execute"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "normal", "high", "urgent"],
+          "description": "Task priority"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "description": "Must be true after the user explicitly confirms"
+        }
+      },
+      "required": ["description"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "openclaw_control_session",
+    "description": "Start, pause, resume, or stop an agent/task session. Requires confirmed=true after explicit user confirmation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["start", "pause", "resume", "stop"]
+        },
+        "target": {
+          "type": "string",
+          "description": "Agent name or task ID"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "description": "Must be true after the user explicitly confirms"
+        }
+      },
+      "required": ["action"],
+      "additionalProperties": false
+    }
+  }
+]
