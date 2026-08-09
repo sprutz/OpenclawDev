@@ -1,6 +1,22 @@
 [
   {
     "type": "function",
+    "name": "openclaw_voice_unlock",
+    "description": "Unlock the voice session after the user speaks the access passphrase. Call this before any other tool when the session is locked.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "passphrase": {
+          "type": "string",
+          "description": "The spoken access passphrase exactly as heard"
+        }
+      },
+      "required": ["passphrase"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
     "name": "openclaw_health",
     "description": "Check OpenClaw gateway health and connectivity",
     "parameters": {

@@ -198,6 +198,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 f"You are the voice interface to the OpenClaw orchestrator for {settings.company_name}."
             )
         allowed = [
+            "openclaw_voice_unlock",
             "openclaw_health",
             "openclaw_list_agents",
             "openclaw_get_status",

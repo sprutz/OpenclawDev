@@ -17,6 +17,7 @@
     "FactoryCommand"
   ],
   "guardrails": [
+    "Session starts locked; require spoken passphrase via openclaw_voice_unlock before any other action",
     "Require explicit spoken confirmation before any write/state-changing action",
     "Do not invent status information",
     "Keep replies short and professional",
@@ -58,6 +59,7 @@
           "server_description": "OpenClaw + Second Brain for QDS Systems: ops status and read-only daily reports/docs",
           "authorization": "REPLACE_WITH_BRIDGE_API_KEY",
           "allowed_tools": [
+            "openclaw_voice_unlock",
             "openclaw_health",
             "openclaw_list_agents",
             "openclaw_get_status",
@@ -73,6 +75,7 @@
   },
   "rollout_notes": {
     "phase_1_readonly": [
+      "openclaw_voice_unlock",
       "openclaw_health",
       "openclaw_list_agents",
       "openclaw_get_status",
@@ -82,6 +85,7 @@
       "openclaw_search_second_brain",
       "openclaw_read_second_brain"
     ],
+    "spoken_unlock": "Set VOICE_SPOKEN_PASSWORD on the bridge. Paste updated grok-voice/prompts/system.md into Voice Agent Builder. Allow openclaw_voice_unlock on the MCP server.",
     "phase_2_writes": [
       "openclaw_assign_task",
       "openclaw_control_session"

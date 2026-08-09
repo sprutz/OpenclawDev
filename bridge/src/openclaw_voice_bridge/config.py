@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     # Second Brain (OpenClaw workspace knowledge store) — read-only for voice.
     second_brain_root: str = "/home/stan/clawd/second-brain"
 
+    # Spoken voice unlock. Empty = gate disabled. Prefer a short phrase that STT hears reliably.
+    voice_spoken_password: str = ""
+    # How long the bridge stays unlocked after a correct spoken passphrase (seconds).
+    voice_unlock_ttl_seconds: int = 8 * 60 * 60
+
     @field_validator("allow_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:

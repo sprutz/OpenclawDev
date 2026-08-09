@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import re
+import secrets
+import time
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -11,6 +14,12 @@ from . import second_brain as sb
 
 Priority = Literal["low", "normal", "high", "urgent"]
 SessionAction = Literal["start", "pause", "resume", "stop"]
+
+
+def normalize_passphrase(value: str) -> str:
+    """Normalize spoken passphrases for reliable STT matching."""
+    cleaned = re.sub(r"[^a-z0-9]+", " ", (value or "").lower()).strip()
+    return re.sub(r"\s+", " ", cleaned)
 
 
 class ToolResult(BaseModel):
@@ -26,6 +35,7 @@ class VoiceTools:
     """Maps Grok Voice tool calls onto OpenClaw (and optional Telegram)."""
 
     WRITE_TOOLS = {"openclaw_assign_task", "openclaw_control_session"}
+    UNLOCK_TOOL = "openclaw_voice_unlock"
 
     def __init__(
         self,
@@ -38,10 +48,22 @@ class VoiceTools:
         self.openclaw = openclaw
         self.telegram = telegram
         self.audit = audit
+        self._unlocked_until = 0.0
+
+    @property
+    def voice_gate_enabled(self) -> bool:
+        return bool(normalize_passphrase(self.settings.voice_spoken_password))
+
+    @property
+    def is_unlocked(self) -> bool:
+        if not self.voice_gate_enabled:
+            return True
+        return time.time() < self._unlocked_until
 
     async def dispatch(self, name: str, arguments: dict[str, Any] | None = None) -> ToolResult:
         args = arguments or {}
         handlers = {
+            "openclaw_voice_unlock": self.voice_unlock,
             "openclaw_list_agents": self.list_agents,
             "openclaw_get_status": self.get_status,
             "openclaw_assign_task": self.assign_task,
@@ -58,6 +80,13 @@ class VoiceTools:
             result = ToolResult(ok=False, tool=name, error=f"Unknown tool: {name}")
             self.audit.log(tool=name, args=args, error=result.error)
             return result
+
+        if name != self.UNLOCK_TOOL:
+            gate = self._gate_voice_unlock(name)
+            if gate:
+                self.audit.log(tool=name, args=args, error=gate.error)
+                return gate
+
         try:
             result = await handler(**args)
         except TypeError as exc:
@@ -66,14 +95,29 @@ class VoiceTools:
             result = ToolResult(ok=False, tool=name, error=str(exc), data={"payload": exc.payload})
         except Exception as exc:  # noqa: BLE001 - surface unexpected failures to voice layer
             result = ToolResult(ok=False, tool=name, error=f"Unexpected error: {exc}")
+        # Never log the raw passphrase.
+        audit_args = dict(args)
+        if name == self.UNLOCK_TOOL and "passphrase" in audit_args:
+            audit_args["passphrase"] = "***"
         self.audit.log(
             tool=name,
-            args=args,
+            args=audit_args,
             result=result.model_dump(),
             error=result.error,
             confirmed=args.get("confirmed"),
         )
         return result
+
+    def _gate_voice_unlock(self, tool: str) -> ToolResult | None:
+        if self.is_unlocked:
+            return None
+        return ToolResult(
+            ok=False,
+            tool=tool,
+            error="Voice session is locked. Speak the access passphrase first.",
+            spoken_hint="Voice control is locked. Please say the access passphrase.",
+            data={"locked": True},
+        )
 
     def _gate_write(self, tool: str, confirmed: bool | None) -> ToolResult | None:
         if not self.settings.enable_write_tools:
@@ -95,6 +139,36 @@ class VoiceTools:
                 spoken_hint="Please confirm before I make that change.",
             )
         return None
+
+    async def voice_unlock(self, passphrase: str) -> ToolResult:
+        if not self.voice_gate_enabled:
+            return ToolResult(
+                ok=True,
+                tool=self.UNLOCK_TOOL,
+                data={"unlocked": True, "gate_enabled": False},
+                spoken_hint="Voice unlock is not required right now.",
+            )
+        expected = normalize_passphrase(self.settings.voice_spoken_password)
+        provided = normalize_passphrase(passphrase)
+        if not provided or not secrets.compare_digest(provided, expected):
+            self._unlocked_until = 0.0
+            return ToolResult(
+                ok=False,
+                tool=self.UNLOCK_TOOL,
+                error="Incorrect passphrase.",
+                spoken_hint="Access denied. Voice control remains locked.",
+                data={"unlocked": False},
+            )
+        self._unlocked_until = time.time() + max(60, int(self.settings.voice_unlock_ttl_seconds))
+        return ToolResult(
+            ok=True,
+            tool=self.UNLOCK_TOOL,
+            data={
+                "unlocked": True,
+                "ttl_seconds": int(self.settings.voice_unlock_ttl_seconds),
+            },
+            spoken_hint="Unlocked. How can I help?",
+        )
 
     async def health(self) -> ToolResult:
         data = await self.openclaw.health()
@@ -355,6 +429,25 @@ class VoiceTools:
 def tool_specs(*, include_write_tools: bool = True) -> list[dict[str, Any]]:
     """Grok Voice / OpenAI-style function tool definitions."""
     tools: list[dict[str, Any]] = [
+        {
+            "type": "function",
+            "name": "openclaw_voice_unlock",
+            "description": (
+                "Unlock the voice session after the user speaks the access passphrase. "
+                "Call this before any other tool when the session is locked."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "passphrase": {
+                        "type": "string",
+                        "description": "The spoken access passphrase exactly as heard",
+                    }
+                },
+                "required": ["passphrase"],
+                "additionalProperties": False,
+            },
+        },
         {
             "type": "function",
             "name": "openclaw_health",

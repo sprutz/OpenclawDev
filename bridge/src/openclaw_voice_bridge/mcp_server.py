@@ -18,6 +18,13 @@ def build_mcp(tools: VoiceTools) -> MCPServer:
         ),
     )
 
+    @mcp.tool(name="openclaw_voice_unlock")
+    async def openclaw_voice_unlock(passphrase: str) -> dict[str, Any]:
+        """Unlock voice tools after the user speaks the access passphrase."""
+        return (
+            await tools.dispatch("openclaw_voice_unlock", {"passphrase": passphrase})
+        ).model_dump()
+
     @mcp.tool(name="openclaw_health")
     async def openclaw_health() -> dict[str, Any]:
         """Check OpenClaw gateway health and connectivity."""
