@@ -107,6 +107,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
+    class NormalizeMcpPathMiddleware:
+        """Rewrite /mcp -> /mcp/ before routing.
+
+        With redirect_slashes=False, Mount('/mcp') does not serve exact /mcp in
+        this FastAPI/Starlette stack (clients get a root 404). xAI uses /mcp.
+        """
+
+        def __init__(self, app):  # noqa: ANN001
+            self.app = app
+
+        async def __call__(self, scope, receive, send):  # noqa: ANN001
+            if scope["type"] == "http" and scope.get("path") == "/mcp":
+                scope = dict(scope)
+                scope["path"] = "/mcp/"
+                if scope.get("raw_path") == b"/mcp":
+                    scope["raw_path"] = b"/mcp/"
+            await self.app(scope, receive, send)
+
+    # Pure ASGI middleware (not BaseHTTPMiddleware) so scope mutation is reliable.
+    app.add_middleware(NormalizeMcpPathMiddleware)
+
     async def bridge_auth(
         request: Request,
         authorization: str | None = Header(default=None),
