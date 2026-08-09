@@ -44,9 +44,9 @@
       "tools": [
         {
           "type": "mcp",
-          "server_url": "https://YOUR_TAILSCALE_HOST:8787/mcp",
+          "server_url": "https://YOUR_VPS_MAGICDNS.ts.net/mcp",
           "server_label": "openclaw",
-          "server_description": "Private OpenClaw orchestrator control plane for QDS Systems",
+          "server_description": "OpenClaw orchestrator control plane for QDS Systems (bridge behind Tailscale Funnel)",
           "authorization": "REPLACE_WITH_BRIDGE_API_KEY",
           "allowed_tools": [
             "openclaw_health",
