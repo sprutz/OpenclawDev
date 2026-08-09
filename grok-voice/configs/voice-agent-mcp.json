@@ -12,13 +12,16 @@
     "historian",
     "PLC",
     "SCADA",
-    "Tailscale"
+    "Tailscale",
+    "Terafab",
+    "FactoryCommand"
   ],
   "guardrails": [
     "Require explicit spoken confirmation before any write/state-changing action",
     "Do not invent status information",
     "Keep replies short and professional",
-    "Escalate production or safety issues clearly"
+    "Escalate production or safety issues clearly",
+    "Second Brain tools are read-only"
   ],
   "session": {
     "type": "session.update",
@@ -35,10 +38,14 @@
             "keyterms": [
               "OpenClaw",
               "QDS Systems",
+              "Second Brain",
+              "daily report",
               "orchestrator",
               "historian",
               "PLC",
-              "SCADA"
+              "SCADA",
+              "Terafab",
+              "FactoryCommand"
             ]
           }
         }
@@ -46,9 +53,9 @@
       "tools": [
         {
           "type": "mcp",
-          "server_url": "https://YOUR_VPS_MAGICDNS.ts.net/mcp",
+          "server_url": "https://YOUR_FUNNEL_HOST.ts.net/mcp",
           "server_label": "openclaw",
-          "server_description": "OpenClaw orchestrator control plane for QDS Systems (bridge behind Tailscale Funnel)",
+          "server_description": "OpenClaw + Second Brain for QDS Systems: ops status and read-only daily reports/docs",
           "authorization": "REPLACE_WITH_BRIDGE_API_KEY",
           "allowed_tools": [
             "openclaw_health",
@@ -79,6 +86,7 @@
       "openclaw_assign_task",
       "openclaw_control_session"
     ],
-    "enable_writes_env": "ENABLE_WRITE_TOOLS=true"
+    "enable_writes_env": "ENABLE_WRITE_TOOLS=true",
+    "auth_note": "Set authorization to the bridge API key from /root/openclaw-backups/bridge-api-key.txt (Bearer token value only, or full Bearer form per console)."
   }
 }
