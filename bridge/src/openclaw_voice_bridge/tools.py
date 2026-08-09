@@ -26,15 +26,10 @@ _TRAILING_FILLER_WORDS = frozenset(
 
 
 def normalize_passphrase(value: str) -> str:
-    """Normalize spoken passphrases for reliable STT matching.
-
-    Strips punctuation (including a trailing period STT often appends),
-    spoken filler like \"period\", and light lead-ins such as \"password is\".
-    """
+    """Normalize to spaced words for display/debug (punctuation/filler removed)."""
     text = (value or "").lower().replace("\u2019", "'").replace("’", "'")
     text = text.strip().strip("\"'`")
     text = _LEADING_FILLER.sub("", text).strip()
-    # Drop trailing punctuation repeatedly (., !, ?, …, etc.).
     text = re.sub(r"[\s\.\,\!\?\;\:…]+$", "", text).strip()
     cleaned = re.sub(r"[^a-z0-9]+", " ", text).strip()
     cleaned = re.sub(r"\s+", " ", cleaned)
@@ -44,31 +39,32 @@ def normalize_passphrase(value: str) -> str:
     return " ".join(parts)
 
 
+def compact_passphrase(value: str) -> str:
+    """Passphrase with all separators removed — primary compare form.
+
+    Voice STT / tool-calling is unreliable with spaces, so we unlock on the
+    compacted alphanumeric form (e.g. 'pursue with enthusiasm' == 'pursuewithenthusiasm').
+    """
+    return re.sub(r"[^a-z0-9]", "", normalize_passphrase(value))
+
+
 def passphrase_matches(provided: str, expected_raw: str) -> bool:
-    """True if provided spoken text matches the expected passphrase under STT noise."""
-    expected = normalize_passphrase(expected_raw)
+    """True if provided spoken text matches expected under STT/spacing noise."""
+    expected = compact_passphrase(expected_raw)
     if not expected:
         return False
-    provided_n = normalize_passphrase(provided)
-    if not provided_n:
+    provided_c = compact_passphrase(provided)
+    if not provided_c:
         return False
-
-    candidates = {provided_n, provided_n.replace(" ", "")}
-    # If the model/STT wrapped the phrase in a longer utterance, accept a contiguous match.
-    expected_compact = expected.replace(" ", "")
-    provided_compact = provided_n.replace(" ", "")
-    if expected_compact and expected_compact in provided_compact:
-        candidates.add(expected)
-
-    for candidate in candidates:
-        if len(candidate) == len(expected) and secrets.compare_digest(candidate, expected):
-            return True
-        if (
-            " " not in candidate
-            and len(candidate) == len(expected_compact)
-            and secrets.compare_digest(candidate, expected_compact)
-        ):
-            return True
+    # Exact compact match, or expected embedded in a longer STT utterance.
+    if len(provided_c) == len(expected) and secrets.compare_digest(provided_c, expected):
+        return True
+    if expected in provided_c and len(expected) >= 12:
+        # Avoid tiny accidental substring unlocks; require a reasonably long phrase.
+        # Reconstruct a same-length slice for constant-time-ish compare.
+        idx = provided_c.find(expected)
+        slice_ = provided_c[idx : idx + len(expected)]
+        return secrets.compare_digest(slice_, expected)
     return False
 
 

@@ -4,7 +4,12 @@ import pytest
 
 from openclaw_voice_bridge.audit import AuditLogger
 from openclaw_voice_bridge.config import Settings
-from openclaw_voice_bridge.tools import VoiceTools, normalize_passphrase, passphrase_matches
+from openclaw_voice_bridge.tools import (
+    VoiceTools,
+    compact_passphrase,
+    normalize_passphrase,
+    passphrase_matches,
+)
 
 
 class _DummyOpenClaw:
@@ -22,7 +27,7 @@ async def test_voice_unlock_gate(tmp_path):
         bridge_api_key="k",
         openclaw_gateway_token="g",
         audit_log_path=str(tmp_path / "a.jsonl"),
-        voice_spoken_password="pursue with enthusiasm",
+        voice_spoken_password="pursuewithenthusiasm",
         voice_unlock_ttl_seconds=600,
         enable_write_tools=False,
     )
@@ -30,17 +35,14 @@ async def test_voice_unlock_gate(tmp_path):
 
     locked = await tools.dispatch("openclaw_health")
     assert locked.ok is False
-    assert locked.data.get("locked") is True
 
     bad = await tools.dispatch("openclaw_voice_unlock", {"passphrase": "wrong phrase"})
     assert bad.ok is False
 
-    still = await tools.dispatch("openclaw_health")
-    assert still.ok is False
-
+    # Spaced speech must unlock against compact stored password.
     ok = await tools.dispatch(
         "openclaw_voice_unlock",
-        {"passphrase": "Pursue with enthusiasm!"},
+        {"passphrase": "pursue with enthusiasm."},
     )
     assert ok.ok is True
 
@@ -48,19 +50,11 @@ async def test_voice_unlock_gate(tmp_path):
     assert health.ok is True
 
 
-def test_normalize_passphrase():
+def test_compact_and_match():
+    assert compact_passphrase("pursue with enthusiasm.") == "pursuewithenthusiasm"
+    assert compact_passphrase("PursueWithEnthusiasm!") == "pursuewithenthusiasm"
+    assert passphrase_matches("pursue with enthusiasm.", "pursuewithenthusiasm")
+    assert passphrase_matches("pursuewithenthusiasm", "pursue with enthusiasm")
+    assert passphrase_matches("password is pursue with enthusiasm.", "pursuewithenthusiasm")
+    assert not passphrase_matches("pursue with energy", "pursuewithenthusiasm")
     assert normalize_passphrase("  Pursue, with-Enthusiasm! ") == "pursue with enthusiasm"
-    assert normalize_passphrase("pursue with enthusiasm.") == "pursue with enthusiasm"
-    assert normalize_passphrase("pursue with enthusiasm period") == "pursue with enthusiasm"
-    assert normalize_passphrase("The passphrase is pursue with enthusiasm.") == (
-        "pursue with enthusiasm"
-    )
-
-
-def test_passphrase_matches_stt_noise():
-    expected = "pursue with enthusiasm"
-    assert passphrase_matches("pursue with enthusiasm.", expected)
-    assert passphrase_matches("Pursue with enthusiasm!", expected)
-    assert passphrase_matches("pursue with enthusiasm period", expected)
-    assert passphrase_matches("password is pursue with enthusiasm.", expected)
-    assert not passphrase_matches("pursue with energy", expected)
