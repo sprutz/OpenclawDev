@@ -31,6 +31,9 @@ openclaw-voice-bridge = "openclaw_voice_bridge.app:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/openclaw_voice_bridge"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/openclaw_voice_bridge/static" = "openclaw_voice_bridge/static"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

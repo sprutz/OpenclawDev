@@ -25,20 +25,29 @@ if [[ -n "${PROXY_CMD}" ]]; then
 fi
 
 echo "Syncing voice artifacts to ${OPENCLAW_VPS_USER}@${OPENCLAW_VPS_HOST}..."
+"${SSH_CMD[@]}" 'mkdir -p /tmp/voice-artifacts/static/voice /tmp/voice-artifacts/bridge'
 "${SCP[@]}" \
   "${ROOT}/grok-voice/prompts/system.md" \
   "${ROOT}/grok-voice/configs/voice-agent-mcp.json" \
   "${ROOT}/grok-voice/configs/tools.json" \
   "${ROOT}/grok-voice/examples/dialogues.md" \
   "${ROOT}/grok-voice/README.md" \
+  "${ROOT}/bridge/src/openclaw_voice_bridge/app.py" \
+  "${ROOT}/bridge/src/openclaw_voice_bridge/config.py" \
+  "${ROOT}/bridge/src/openclaw_voice_bridge/voice_session.py" \
   "${OPENCLAW_VPS_USER}@${OPENCLAW_VPS_HOST}:/tmp/voice-artifacts/"
+"${SCP[@]}" \
+  "${ROOT}/bridge/src/openclaw_voice_bridge/static/voice/index.html" \
+  "${OPENCLAW_VPS_USER}@${OPENCLAW_VPS_HOST}:/tmp/voice-artifacts/static/voice/index.html"
 
 "${SSH_CMD[@]}" 'bash -s' <<'REMOTE'
 set -euo pipefail
 SRC=/tmp/voice-artifacts
+PKG=/opt/openclaw-voice-bridge/bridge/src/openclaw_voice_bridge
 install -d -m 755 /opt/openclaw-voice-bridge/grok-voice/prompts
 install -d -m 755 /opt/openclaw-voice-bridge/grok-voice/configs
 install -d -m 755 /opt/openclaw-voice-bridge/grok-voice/examples
+install -d -m 755 "$PKG/static/voice"
 install -d -m 700 /root/openclaw-backups
 install -d -o stan -g stan -m 755 /home/stan/clawd/second-brain/docs
 
@@ -47,6 +56,10 @@ install -o ubuntu -g ubuntu -m 644 "$SRC/voice-agent-mcp.json" /opt/openclaw-voi
 install -o ubuntu -g ubuntu -m 644 "$SRC/tools.json" /opt/openclaw-voice-bridge/grok-voice/configs/tools.json
 install -o ubuntu -g ubuntu -m 644 "$SRC/dialogues.md" /opt/openclaw-voice-bridge/grok-voice/examples/dialogues.md
 install -o ubuntu -g ubuntu -m 644 "$SRC/README.md" /opt/openclaw-voice-bridge/grok-voice/README.md
+install -o ubuntu -g ubuntu -m 644 "$SRC/app.py" "$PKG/app.py"
+install -o ubuntu -g ubuntu -m 644 "$SRC/config.py" "$PKG/config.py"
+install -o ubuntu -g ubuntu -m 644 "$SRC/voice_session.py" "$PKG/voice_session.py"
+install -o ubuntu -g ubuntu -m 644 "$SRC/static/voice/index.html" "$PKG/static/voice/index.html"
 
 install -m 600 "$SRC/system.md" /root/openclaw-backups/voice-agent-system.md
 install -m 600 "$SRC/voice-agent-mcp.json" /root/openclaw-backups/voice-agent-mcp.json

@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenClaw Voice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #10231c;
+      --foam: #f3f7f2;
+      --moss: #1f6b4a;
+      --moss-deep: #0f3d2b;
+      --amber: #d97706;
+      --line: rgba(16, 35, 28, 0.14);
+      --glass: rgba(243, 247, 242, 0.82);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: "Manrope", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(31, 107, 74, 0.28), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(217, 119, 6, 0.18), transparent 50%),
+        linear-gradient(165deg, #e8f0e6 0%, #d5e4d8 45%, #c5d5c8 100%);
+      min-height: 100%;
+    }
+    main {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 2rem 1.25rem 3rem;
+    }
+    .stage {
+      width: min(520px, 100%);
+      display: grid;
+      gap: 1.25rem;
+    }
+    .brand {
+      font-family: "Fraunces", serif;
+      font-size: clamp(2.4rem, 8vw, 3.4rem);
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+      margin: 0;
+    }
+    .lede {
+      margin: 0;
+      font-size: 1.05rem;
+      line-height: 1.45;
+      max-width: 34ch;
+      opacity: 0.88;
+    }
+    .panel {
+      background: var(--glass);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+      padding: 1rem 1.1rem;
+      display: grid;
+      gap: 0.75rem;
+    }
+    label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+    input[type="password"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.65);
+      color: var(--ink);
+      padding: 0.75rem 0.85rem;
+      font: inherit;
+      font-size: 1rem;
+    }
+    .actions {
+      display: flex;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+    }
+    button {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      padding: 0.85rem 1.2rem;
+      transition: transform 160ms ease, background 160ms ease, opacity 160ms ease;
+    }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .primary {
+      background: var(--moss);
+      color: var(--foam);
+      min-width: 9rem;
+    }
+    .primary:hover:not(:disabled) { background: var(--moss-deep); }
+    .ghost {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .status {
+      min-height: 1.4rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .status[data-tone="live"] { color: var(--moss-deep); }
+    .status[data-tone="warn"] { color: var(--amber); }
+    .status[data-tone="err"] { color: #9f1239; }
+    .log {
+      margin: 0;
+      max-height: 10rem;
+      overflow: auto;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      opacity: 0.8;
+    }
+    .pulse {
+      width: 0.7rem;
+      height: 0.7rem;
+      border-radius: 50%;
+      background: var(--line);
+      display: inline-block;
+      margin-right: 0.45rem;
+      vertical-align: middle;
+    }
+    .pulse.on {
+      background: var(--moss);
+      box-shadow: 0 0 0 0 rgba(31, 107, 74, 0.55);
+      animation: ping 1.6s infinite;
+    }
+    @keyframes ping {
+      0% { box-shadow: 0 0 0 0 rgba(31, 107, 74, 0.45); }
+      70% { box-shadow: 0 0 0 12px rgba(31, 107, 74, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(31, 107, 74, 0); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="stage">
+      <h1 class="brand">OpenClaw</h1>
+      <p class="lede">Spoken control for QDS Systems — unlock, then ask for status or today’s report.</p>
+
+      <div class="panel">
+        <div>
+          <label for="key">Bridge key</label>
+          <input id="key" type="password" autocomplete="off" placeholder="Bridge API key" />
+        </div>
+        <div class="actions">
+          <button id="start" class="primary" type="button">Start listening</button>
+          <button id="stop" class="ghost" type="button" disabled>Stop</button>
+        </div>
+        <div id="status" class="status" data-tone="warn"><span class="pulse" id="pulse"></span>Idle</div>
+        <pre id="log" class="log"></pre>
+      </div>
+    </section>
+  </main>
+  <script>
+    const MODEL = "grok-voice-latest";
+    const REALTIME = `wss://api.x.ai/v1/realtime?model=${MODEL}`;
+    const keyInput = document.getElementById("key");
+    const startBtn = document.getElementById("start");
+    const stopBtn = document.getElementById("stop");
+    const statusEl = document.getElementById("status");
+    const pulseEl = document.getElementById("pulse");
+    const logEl = document.getElementById("log");
+
+    const params = new URLSearchParams(location.search);
+    const stored = localStorage.getItem("openclaw_bridge_key") || "";
+    keyInput.value = params.get("k") || stored;
+
+    let ws = null;
+    let mediaStream = null;
+    let audioContext = null;
+    let processor = null;
+    let source = null;
+    let playing = false;
+    let nextPlayTime = 0;
+
+    function setStatus(text, tone = "warn") {
+      statusEl.dataset.tone = tone;
+      statusEl.innerHTML = `<span class="pulse${tone === "live" ? " on" : ""}" id="pulse"></span>${text}`;
+    }
+
+    function log(line) {
+      const stamp = new Date().toLocaleTimeString();
+      logEl.textContent = `[${stamp}] ${line}\n` + logEl.textContent;
+    }
+
+    function floatTo16BitPCM(float32) {
+      const out = new Int16Array(float32.length);
+      for (let i = 0; i < float32.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32[i]));
+        out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+      return out;
+    }
+
+    function downsample(buffer, fromRate, toRate) {
+      if (fromRate === toRate) return buffer;
+      const ratio = fromRate / toRate;
+      const newLen = Math.round(buffer.length / ratio);
+      const result = new Float32Array(newLen);
+      for (let i = 0; i < newLen; i++) {
+        result[i] = buffer[Math.min(buffer.length - 1, Math.round(i * ratio))] || 0;
+      }
+      return result;
+    }
+
+    function b64FromBytes(bytes) {
+      let binary = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      return btoa(binary);
+    }
+
+    function playPcm16Base64(b64, sampleRate = 24000) {
+      if (!audioContext) return;
+      const raw = atob(b64);
+      const buf = new ArrayBuffer(raw.length);
+      const view = new Uint8Array(buf);
+      for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
+      const samples = new Int16Array(buf);
+      const audioBuf = audioContext.createBuffer(1, samples.length, sampleRate);
+      const channel = audioBuf.getChannelData(0);
+      for (let i = 0; i < samples.length; i++) channel[i] = samples[i] / 0x8000;
+      const src = audioContext.createBufferSource();
+      src.buffer = audioBuf;
+      src.connect(audioContext.destination);
+      const now = audioContext.currentTime;
+      nextPlayTime = Math.max(nextPlayTime, now + 0.02);
+      src.start(nextPlayTime);
+      nextPlayTime += audioBuf.duration;
+      playing = true;
+      src.onended = () => { playing = false; };
+    }
+
+    async function bootstrap(key) {
+      const resp = await fetch("/v1/voice-agent/bootstrap", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || `Bootstrap failed (${resp.status})`);
+      }
+      return data;
+    }
+
+    async function startMic(sendAudio) {
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      audioContext = new AudioContext({ sampleRate: 24000 });
+      if (audioContext.state === "suspended") await audioContext.resume();
+      source = audioContext.createMediaStreamSource(mediaStream);
+      processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processor.onaudioprocess = (ev) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const input = ev.inputBuffer.getChannelData(0);
+        const resampled = downsample(input, audioContext.sampleRate, 24000);
+        const pcm = floatTo16BitPCM(resampled);
+        const audio = b64FromBytes(new Uint8Array(pcm.buffer));
+        sendAudio(audio);
+      };
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+    }
+
+    async function start() {
+      const key = keyInput.value.trim();
+      if (!key) {
+        setStatus("Enter the bridge key first", "err");
+        return;
+      }
+      startBtn.disabled = true;
+      setStatus("Bootstrapping session…", "warn");
+      try {
+        localStorage.setItem("openclaw_bridge_key", key);
+        const boot = await bootstrap(key);
+        const token = boot.client_secret?.value || boot.client_secret;
+        if (!token) throw new Error("No client secret returned");
+        const sessionUpdate = boot.session_update;
+        await startMic((audio) => {
+          ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio }));
+        });
+
+        ws = new WebSocket(REALTIME, [`xai-client-secret.${token}`]);
+        ws.onopen = () => {
+          log("Realtime connected");
+          ws.send(JSON.stringify(sessionUpdate));
+          setStatus("Listening — say the access passphrase", "live");
+          stopBtn.disabled = false;
+        };
+        ws.onmessage = (ev) => {
+          let msg;
+          try { msg = JSON.parse(ev.data); } catch { return; }
+          const t = msg.type || "";
+          if (t === "session.updated") {
+            log("Session configured (prompt + MCP)");
+          } else if (t === "response.output_audio.delta" || t === "response.audio.delta") {
+            if (msg.delta) playPcm16Base64(msg.delta, 24000);
+          } else if (t === "response.output_audio_transcript.delta" || t === "response.audio_transcript.delta") {
+            if (msg.delta) log(`Grok: ${msg.delta}`);
+          } else if (t === "conversation.item.input_audio_transcription.completed") {
+            if (msg.transcript) log(`You: ${msg.transcript}`);
+          } else if (t === "error") {
+            log(`Error: ${JSON.stringify(msg.error || msg)}`);
+            setStatus("Realtime error", "err");
+          } else if (t === "response.done") {
+            // keep listening
+          }
+        };
+        ws.onerror = () => {
+          setStatus("WebSocket error", "err");
+          log("WebSocket error");
+        };
+        ws.onclose = () => {
+          setStatus("Disconnected", "warn");
+          cleanup(false);
+        };
+      } catch (err) {
+        setStatus(err.message || String(err), "err");
+        log(String(err));
+        cleanup(true);
+      }
+    }
+
+    function cleanup(enableStart) {
+      try { ws && ws.close(); } catch {}
+      ws = null;
+      try { processor && processor.disconnect(); } catch {}
+      try { source && source.disconnect(); } catch {}
+      try { mediaStream && mediaStream.getTracks().forEach((t) => t.stop()); } catch {}
+      try { audioContext && audioContext.close(); } catch {}
+      processor = null;
+      source = null;
+      mediaStream = null;
+      audioContext = null;
+      stopBtn.disabled = true;
+      if (enableStart !== false) startBtn.disabled = false;
+    }
+
+    function stop() {
+      cleanup(true);
+      setStatus("Stopped", "warn");
+    }
+
+    startBtn.addEventListener("click", start);
+    stopBtn.addEventListener("click", stop);
+  </script>
+</body>
+</html>

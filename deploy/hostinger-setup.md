@@ -87,32 +87,24 @@ Your MCP URL becomes:
 
 Keep write tools disabled until read-only voice sessions look good. Funnel exposes only the bridge (bearer-auth + audit log), not the OpenClaw gateway port.
 
-## 5) Configure the Grok Voice agent (operator scripts)
+## 5) Use the bridge-hosted voice UI
 
-Do **not** hand-edit the xAI console for routine prompt/MCP changes. From a Cursor Cloud Agent (or any host with VPS + xAI secrets):
+Cursor syncs prompt/MCP/env; you talk through the bridge UI (no Voice Agent Builder paste):
 
 ```bash
-# 1) Sync prompt/MCP artifacts + spoken unlock env + restart bridge
 ./scripts/vps/sync-voice-artifacts.sh
-
-# 2) Push saved Voice Agent (prompt + MCP allow-list) via xAI Agents API
-XAI_API_KEY=... BRIDGE_API_KEY=... MCP_PUBLIC_HOSTS=<funnel-host> \
-  python3 scripts/vps/update-xai-voice-agent.py
 ```
 
-Bridge env on the VPS should include:
+Open: `https://<funnel-host>/voice`
 
-- `VOICE_SPOKEN_PASSWORD=pursuewithenthusiasm` (no spaces; speak “pursue with enthusiasm”)
-- `MCP_PUBLIC_HOSTS=<funnel-host>`
-- optional `XAI_API_KEY` for `POST /v1/voice-agent/client-secret`
-
-If step 2 exits with code 3, the team’s Agents API is not enabled yet (`/v1/agents` 403). Enable it once in the xAI console for the Openclaw team; afterward Cursor keeps the Builder agent in sync.
-
-Smoke checks after sync:
-
+- Enter the bridge API key once (stored in the browser)
+- Tap **Start listening**
 - Speak unlock: “pursue with enthusiasm”
-- “Check OpenClaw health”
-- “Read me today’s daily report”
+- Then: “Check OpenClaw health” / “Read me today’s daily report”
+
+Bridge env should include `VOICE_SPOKEN_PASSWORD=pursuewithenthusiasm`, `MCP_PUBLIC_HOSTS=<funnel-host>`, and `XAI_API_KEY` (for realtime client secrets).
+
+Optional: `scripts/vps/update-xai-voice-agent.py` updates a saved Builder agent if the team’s Agents API is enabled.
 
 ## 6) Roll out writes safely
 

@@ -37,8 +37,12 @@ XAI_API_KEY=... BRIDGE_API_KEY=... MCP_PUBLIC_HOSTS=... \
 
 If `update-xai-voice-agent.py` exits 3, the team’s Agents API is still disabled (`/v1/agents` 403). That is the only xAI console gate; enable it once so agents can keep the Builder agent in sync without UI edits.
 
+**Use voice here (no xAI Builder paste):** `https://<funnel-host>/voice`
+
 Bridge helpers:
 
+- `GET /voice` — hosted mic client; loads prompt + MCP from this bridge every session
+- `POST /v1/voice-agent/bootstrap` — client secret + `session.update` for that UI
 - `GET /v1/voice-agent/session` — full `session.update` (prompt + MCP URL from `MCP_PUBLIC_HOSTS`)
 - `POST /v1/voice-agent/client-secret` — short-lived realtime token (needs `XAI_API_KEY` on bridge)
 

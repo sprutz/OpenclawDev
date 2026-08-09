@@ -10,7 +10,7 @@ import httpx
 import uvicorn
 from fastapi import Depends, FastAPI, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from .audit import AuditLogger
@@ -19,6 +19,7 @@ from .config import Settings, get_settings
 from .mcp_server import build_mcp
 from .openclaw_client import OpenClawClient, TelegramBridge
 from .tools import VoiceTools, tool_specs
+from .voice_session import build_session_update
 
 logger = logging.getLogger("openclaw_voice_bridge")
 
@@ -182,59 +183,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         status = 200 if result.ok or result.needs_confirmation else 400
         return JSONResponse(status_code=status, content=result.model_dump())
 
-    @app.get("/v1/voice-agent/session")
-    async def voice_session_config(_: str = Depends(bridge_auth)) -> dict[str, Any]:
-        """Ready-to-use Grok Voice session.update fragment."""
-        candidates = [
-            Path(__file__).resolve().parents[3] / "grok-voice" / "prompts" / "system.md",
-            Path("/opt/openclaw-voice-bridge/grok-voice/prompts/system.md"),
-            Path("/grok-voice/prompts/system.md"),
-        ]
-        instructions = None
-        for prompt_path in candidates:
-            if prompt_path.exists():
-                instructions = prompt_path.read_text(encoding="utf-8")
-                break
-        if instructions is None:
-            instructions = (
-                f"You are the voice interface to the OpenClaw orchestrator for {settings.company_name}."
-            )
-        allowed = [
-            "openclaw_voice_unlock",
-            "openclaw_health",
-            "openclaw_list_agents",
-            "openclaw_get_status",
-            "openclaw_get_summary",
-            "openclaw_read_daily_report",
-            "openclaw_list_second_brain",
-            "openclaw_search_second_brain",
-            "openclaw_read_second_brain",
-        ]
-        if settings.enable_write_tools:
-            allowed.extend(["openclaw_assign_task", "openclaw_control_session"])
-        mcp_url = settings.resolved_mcp_public_url or "REPLACE_WITH_PUBLIC_OR_TAILSCALE_MCP_URL/mcp"
-        return {
-            "type": "session.update",
-            "session": {
-                "instructions": instructions,
-                "voice": "eve",
-                "turn_detection": {"type": "server_vad"},
-                "tools": [
-                    {
-                        "type": "mcp",
-                        "server_url": mcp_url,
-                        "server_label": "openclaw",
-                        "server_description": "OpenClaw orchestrator control tools",
-                        "authorization": settings.bridge_api_key,
-                        "allowed_tools": allowed,
-                    }
-                ],
-            },
-        }
-
-    @app.post("/v1/voice-agent/client-secret")
-    async def voice_client_secret(_: str = Depends(bridge_auth)) -> JSONResponse:
-        """Mint a short-lived xAI realtime client secret (server holds XAI_API_KEY)."""
+    async def mint_client_secret() -> JSONResponse | dict[str, Any]:
         if not settings.xai_api_key.strip():
             return JSONResponse(
                 status_code=503,
@@ -265,7 +214,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "body": resp.text[:500],
                 },
             )
-        return JSONResponse(status_code=200, content={"ok": True, "data": resp.json()})
+        return resp.json()
+
+    @app.get("/v1/voice-agent/session")
+    async def voice_session_config(_: str = Depends(bridge_auth)) -> dict[str, Any]:
+        """Ready-to-use Grok Voice session.update fragment."""
+        return build_session_update(settings)
+
+    @app.post("/v1/voice-agent/client-secret")
+    async def voice_client_secret(_: str = Depends(bridge_auth)) -> JSONResponse:
+        """Mint a short-lived xAI realtime client secret (server holds XAI_API_KEY)."""
+        result = await mint_client_secret()
+        if isinstance(result, JSONResponse):
+            return result
+        return JSONResponse(status_code=200, content={"ok": True, "data": result})
+
+    @app.post("/v1/voice-agent/bootstrap")
+    async def voice_bootstrap(_: str = Depends(bridge_auth)) -> JSONResponse:
+        """One-shot bootstrap for the bridge-hosted voice UI."""
+        secret = await mint_client_secret()
+        if isinstance(secret, JSONResponse):
+            return secret
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "client_secret": secret,
+                "session_update": build_session_update(settings),
+                "realtime_url": "wss://api.x.ai/v1/realtime?model=grok-voice-latest",
+            },
+        )
+
+    voice_static = Path(__file__).resolve().parent / "static" / "voice"
+
+    @app.get("/voice")
+    @app.get("/voice/")
+    async def voice_ui() -> FileResponse:
+        index = voice_static / "index.html"
+        if not index.exists():
+            return JSONResponse(status_code=404, content={"error": "voice UI missing"})
+        return FileResponse(index)
 
     class EnsureMcpRootPath:
         """Mount('/mcp') leaves path='' for exact /mcp; StreamableHTTP expects '/'."""
